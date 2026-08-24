@@ -13,10 +13,28 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    return await _auth.signInWithEmailAndPassword(
+    final credential = await _auth.signInWithEmailAndPassword(
       email: email,
       password: password,
     );
+
+    // Verify admin document exists in 'admins' collection
+    if (credential.user != null) {
+      final adminDoc = await _firestore.collection('admins').doc(credential.user!.uid).get();
+      if (!adminDoc.exists) {
+        // Also check legacy/fallback 'users' collection if needed
+        final userDoc = await _firestore.collection('users').doc(credential.user!.uid).get();
+        if (!userDoc.exists || userDoc.data()?['role'] != 'admin') {
+          await _auth.signOut();
+          throw FirebaseAuthException(
+            code: 'access-denied',
+            message: 'Access denied: User is not authorized as an administrator.',
+          );
+        }
+      }
+    }
+
+    return credential;
   }
 
   Future<UserCredential> signUpAdmin({
@@ -30,7 +48,7 @@ class AuthService {
     );
 
     if (credential.user != null) {
-      await _firestore.collection('users').doc(credential.user!.uid).set({
+      await _firestore.collection('admins').doc(credential.user!.uid).set({
         'uid': credential.user!.uid,
         'email': email,
         'name': name,

@@ -46,8 +46,8 @@ def seed_admin_credentials():
         credentials=google.auth.credentials.AnonymousCredentials()
     )
 
-    user_ref = db.collection("users").document(user.uid)
-    user_ref.set({
+    admin_ref = db.collection("admins").document(user.uid)
+    admin_ref.set({
         "uid": user.uid,
         "email": email,
         "name": display_name,
@@ -55,7 +55,7 @@ def seed_admin_credentials():
         "status": "active",
         "createdAt": google_firestore.SERVER_TIMESTAMP
     }, merge=True)
-    print(f"✔ Created Admin profile document in Firestore Emulator under 'users/{user.uid}'")
+    print(f"✔ Created Admin profile document in Firestore Emulator under 'admins/{user.uid}'")
     print("\n" + "="*50)
     print("🔑 ADMIN LOGIN CREDENTIALS:")
     print(f"   Email:    {email}")

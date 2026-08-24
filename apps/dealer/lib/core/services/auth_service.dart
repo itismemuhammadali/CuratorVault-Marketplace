@@ -31,7 +31,7 @@ class AuthService {
     );
 
     if (credential.user != null) {
-      await _firestore.collection('users').doc(credential.user!.uid).set({
+      await _firestore.collection('dealers').doc(credential.user!.uid).set({
         'uid': credential.user!.uid,
         'email': email,
         'storeName': storeName,
