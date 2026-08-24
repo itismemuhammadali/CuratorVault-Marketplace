@@ -1,4 +1,13 @@
+import sys
 import os
+from pathlib import Path
+
+# Automatically locate and register the backend/.venv site-packages
+backend_dir = Path(__file__).resolve().parent
+venv_site_packages = backend_dir / ".venv" / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
+if venv_site_packages.exists() and str(venv_site_packages) not in sys.path:
+    sys.path.insert(0, str(venv_site_packages))
+
 import firebase_admin
 from firebase_admin import auth, firestore
 import google.auth.credentials
