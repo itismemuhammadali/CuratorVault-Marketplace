@@ -23,6 +23,19 @@ npm run backend:dev
 
 ---
 
+## 🔑 Default Admin App Credentials
+
+The following admin user has been created in the Firebase Auth & Firestore Emulators and saved to `./emulator-data`:
+
+- **Email**: `admin@vintagevinne.com`
+- **Password**: `AdminPassword123!`
+- **Role**: `admin`
+
+To re-seed or generate new admin credentials at any time, run:
+```bash
+npm run seed:admin
+```
+
 ## 🛠️ Port Reference Table
 
 | Service / Component | Host & Port | Description |
