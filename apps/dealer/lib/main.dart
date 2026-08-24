@@ -5,7 +5,11 @@ import 'package:vintage_app/core/routes.dart';
 import 'core/components/global_header/header_controller.dart';
 import 'core/components/global_header/header_controller_provider.dart';
 
-void main() {
+import 'core/services/firebase_service.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await FirebaseService.initialize();
   runApp(const MyApp());
 }
 
