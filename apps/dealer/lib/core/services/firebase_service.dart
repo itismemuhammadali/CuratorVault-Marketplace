@@ -1,5 +1,5 @@
-import 'package:flutter/widgets.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -22,10 +22,15 @@ class FirebaseService {
     }
 
     if (kDebugMode) {
+      // 10.0.2.2 is the Android Emulator loopback IP to host machine localhost
+      final String host = (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
+          ? '10.0.2.2'
+          : '127.0.0.1';
+
       try {
-        FirebaseFirestore.instance.useFirestoreEmulator('127.0.0.1', 8080);
-        await FirebaseAuth.instance.useAuthEmulator('127.0.0.1', 9099);
-        await FirebaseStorage.instance.useStorageEmulator('127.0.0.1', 9199);
+        FirebaseFirestore.instance.useFirestoreEmulator(host, 8080);
+        await FirebaseAuth.instance.useAuthEmulator(host, 9099);
+        await FirebaseStorage.instance.useStorageEmulator(host, 9199);
       } catch (e) {
         debugPrint("Firebase Emulators connection info: $e");
       }
