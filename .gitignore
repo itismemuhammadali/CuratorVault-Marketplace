@@ -63,3 +63,8 @@ builds/
 # Firebase Emulator logs & persistent data
 *-debug.log
 emulator-data/
+
+# Python Virtual Environments & Caches
+.venv/
+**/__pycache__/
+*.pyc

@@ -6,6 +6,7 @@
   "scripts": {
     "emulators": "npx firebase-tools emulators:start --import=./emulator-data --export-on-exit",
     "emulators:start": "npx firebase-tools emulators:start",
-    "emulators:export": "npx firebase-tools emulators:export ./emulator-data"
+    "emulators:export": "npx firebase-tools emulators:export ./emulator-data",
+    "backend:dev": "cd backend && .venv/bin/uvicorn app.main:app --reload --port 8000"
   }
 }
