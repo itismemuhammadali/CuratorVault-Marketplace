@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:image_picker/image_picker.dart';
 import 'package:vintage_app/core/components/global_header/global_header.dart';
@@ -28,6 +30,97 @@ class _EditProfileState extends State<EditProfile> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _bioController = TextEditingController();
+
+  bool _isLoadingData = true;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAdminProfileData();
+  }
+
+  Future<void> _fetchAdminProfileData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) setState(() => _isLoadingData = false);
+      return;
+    }
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('admins')
+          .doc(user.uid)
+          .get();
+
+      Map<String, dynamic>? data;
+      if (doc.exists) {
+        data = doc.data();
+      }
+
+      if (mounted) {
+        _fullNameController.text = data?['name'] ?? user.displayName ?? 'System Admin';
+        _emailController.text = user.email ?? data?['email'] ?? 'admin@vintagevinne.com';
+        _phoneController.text = data?['phone'] ?? '+1 (555) 000-0000';
+        _locationController.text = data?['location'] ?? 'New York, NY';
+        _bioController.text = data?['bio'] ?? '';
+      }
+    } catch (e) {
+      debugPrint("Error fetching admin profile data: $e");
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingData = false);
+      }
+    }
+  }
+
+  Future<void> _saveChanges() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) context.pop();
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      final updatedData = {
+        'name': _fullNameController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'location': _locationController.text.trim(),
+        'bio': _bioController.text.trim(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      await FirebaseFirestore.instance
+          .collection('admins')
+          .doc(user.uid)
+          .set(updatedData, SetOptions(merge: true));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile updated successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update profile: $e'),
+            backgroundColor: AppColors.redButton,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
 
   Future<void> _pickProfileImage() async {
     try {
@@ -71,19 +164,17 @@ class _EditProfileState extends State<EditProfile> {
               }
             },
             child: Container(
-              width: 29.w,
-              height: 29.w,
+              width: 32.w,
+              height: 32.w,
               decoration: BoxDecoration(
-                color: AppColors.bodyBg.withValues(alpha: 0.22),
+                color: Colors.white.withValues(alpha: 0.20),
                 shape: BoxShape.circle,
               ),
-              child: SvgPicture.asset(
-                'assets/icons/arrow_back_icon.svg',
-                width: 18.sp,
-                height: 18.sp,
-                colorFilter: const ColorFilter.mode(
-                  AppColors.darkText,
-                  BlendMode.srcIn,
+              child: Center(
+                child: Icon(
+                  Icons.arrow_back_rounded,
+                  size: 18.sp,
+                  color: Colors.white,
                 ),
               ),
             ),
@@ -101,7 +192,7 @@ class _EditProfileState extends State<EditProfile> {
                   fontSize: 20.sp,
                 ),
               ),
-              SizedBox(height: 10.h),
+              SizedBox(height: 6.h),
               Text(
                 'Update your information',
                 maxLines: 1,
@@ -118,16 +209,20 @@ class _EditProfileState extends State<EditProfile> {
       backgroundColor: const Color(0xFFFAFAFB),
       body: SafeArea(
         top: false,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(17.w, 12.h, 17.w, 24.h),
-          child: Column(
-            children: [
-              _photoCard(),
-              SizedBox(height: 12.h),
-              _informationCard(),
-            ],
-          ),
-        ),
+        child: _isLoadingData
+            ? const Center(
+                child: CircularProgressIndicator(color: AppColors.gradientColor1),
+              )
+            : SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(17.w, 12.h, 17.w, 24.h),
+                child: Column(
+                  children: [
+                    _photoCard(),
+                    SizedBox(height: 12.h),
+                    _informationCard(),
+                  ],
+                ),
+              ),
       ),
       bottomNavigationBar: _bottomActions(context),
     );
@@ -233,7 +328,6 @@ class _EditProfileState extends State<EditProfile> {
                   BlendMode.srcIn,
                 ),
               ),
-
               SizedBox(width: 8.w),
               Text(
                 'Personal Information',
@@ -249,7 +343,7 @@ class _EditProfileState extends State<EditProfile> {
             label: 'Full Name',
             svgPath: 'assets/icons/profile_icon.svg',
             controller: _fullNameController,
-            hintText: 'Elan new',
+            hintText: 'Enter your full name',
           ),
           SizedBox(height: 13.h),
           _fieldBlockWithSvg(
@@ -258,6 +352,7 @@ class _EditProfileState extends State<EditProfile> {
             controller: _emailController,
             hintText: 'admin@vintagevinnie.com',
             keyboardType: TextInputType.emailAddress,
+            readOnly: true,
           ),
           SizedBox(height: 13.h),
           _fieldBlockWithSvg(
@@ -289,49 +384,13 @@ class _EditProfileState extends State<EditProfile> {
     );
   }
 
-  Widget _fieldBlock({
-    required String label,
-    required IconData icon,
-    required TextEditingController controller,
-    required String hintText,
-    TextInputType? keyboardType,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 18.sp, color: const Color(0xFF8B95A5)),
-            SizedBox(width: 7.w),
-            Text(
-              label,
-              style: TextStyles.semiBoldExtraSmall.copyWith(
-                color: const Color(0xFF344054),
-                fontSize: 11.sp,
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 8.h),
-        TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          style: TextStyles.regularSmall.copyWith(
-            color: const Color(0xFF344054),
-            fontSize: 13.sp,
-          ),
-          decoration: _fieldDecoration(hintText: hintText),
-        ),
-      ],
-    );
-  }
-
   Widget _fieldBlockWithSvg({
     required String label,
     required String svgPath,
     required TextEditingController controller,
     required String hintText,
     TextInputType? keyboardType,
+    bool readOnly = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -361,11 +420,15 @@ class _EditProfileState extends State<EditProfile> {
         TextField(
           controller: controller,
           keyboardType: keyboardType,
+          readOnly: readOnly,
           style: TextStyles.regularSmall.copyWith(
-            color: const Color(0xFF344054),
+            color: readOnly ? const Color(0xFF8E96A3) : const Color(0xFF344054),
             fontSize: 13.sp,
           ),
-          decoration: _fieldDecoration(hintText: hintText),
+          decoration: _fieldDecoration(
+            hintText: hintText,
+            fillColor: readOnly ? const Color(0xFFE9EBEF) : const Color(0xFFF0F0F2),
+          ),
         ),
       ],
     );
@@ -390,6 +453,7 @@ class _EditProfileState extends State<EditProfile> {
   InputDecoration _fieldDecoration({
     required String hintText,
     EdgeInsetsGeometry? contentPadding,
+    Color fillColor = const Color(0xFFF0F0F2),
   }) {
     return InputDecoration(
       isDense: true,
@@ -399,7 +463,7 @@ class _EditProfileState extends State<EditProfile> {
         fontSize: 13.sp,
       ),
       filled: true,
-      fillColor: const Color(0xFFF0F0F2),
+      fillColor: fillColor,
       contentPadding:
           contentPadding ??
           EdgeInsets.symmetric(horizontal: 10.w, vertical: 13.h),
@@ -442,14 +506,11 @@ class _EditProfileState extends State<EditProfile> {
               SizedBox(width: 8.w),
               Expanded(
                 child: _actionButton(
-                  label: 'Save Changes',
+                  label: _isSaving ? 'Saving...' : 'Save Changes',
                   textColor: AppColors.bodyBg,
                   background: AppColors.gradientColor2,
-                  icon: Icons.save_outlined,
-                  onTap: () {
-                    FocusScope.of(context).unfocus();
-                    context.pop();
-                  },
+                  icon: _isSaving ? null : Icons.save_outlined,
+                  onTap: _isSaving ? () {} : _saveChanges,
                 ),
               ),
             ],
