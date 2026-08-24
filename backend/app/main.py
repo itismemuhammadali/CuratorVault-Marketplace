@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import firebase_admin
 from firebase_admin import credentials, firestore, auth, storage
 from app.config import settings
+from app.routers import profile, events
 
 # Configure Firebase Emulators if running in local/dev mode
 if settings.USE_FIREBASE_EMULATOR:
@@ -32,6 +33,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include API Routers under /api/v1
+app.include_router(profile.router, prefix="/api/v1")
+app.include_router(events.router, prefix="/api/v1")
 
 @app.get("/")
 def read_root():

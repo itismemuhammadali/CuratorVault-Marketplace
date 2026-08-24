@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_switch/flutter_switch.dart';
+import 'package:go_router/go_router.dart';
+
 import 'package:vintage_app/core/components/global_header/global_header.dart';
 import 'package:vintage_app/core/components/global_header/header_config.dart';
 import 'package:vintage_app/core/components/includes/app_text_field.dart';
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
+import 'package:vintage_app/core/services/api_service.dart';
 import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/buttons/custom_button.dart';
 import 'package:vintage_app/core/theme/images.dart';
@@ -26,7 +30,17 @@ class _CreateEventViewState extends State<CreateEventView> {
   final TextEditingController _endTimeController = TextEditingController();
 
   bool _isVirtual = false;
+  String _selectedEventType = 'General';
   String _selectedVisibility = 'Public';
+  bool _isSubmitting = false;
+
+  final List<String> _eventTypes = [
+    'General',
+    'Treasure Hunt',
+    'Auction',
+    'Exhibition',
+    'Fair'
+  ];
 
   @override
   void dispose() {
@@ -40,12 +54,133 @@ class _CreateEventViewState extends State<CreateEventView> {
     super.dispose();
   }
 
+  Future<void> _pickDate(TextEditingController controller) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: now,
+      lastDate: DateTime(now.year + 5),
+    );
+    if (picked != null) {
+      final formatted =
+          "${picked.month.toString().padLeft(2, '0')}/${picked.day.toString().padLeft(2, '0')}/${picked.year}";
+      controller.text = formatted;
+    }
+  }
+
+  Future<void> _pickTime(TextEditingController controller) async {
+    final now = TimeOfDay.now();
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: now,
+    );
+    if (picked != null) {
+      if (!mounted) return;
+      controller.text = picked.format(context);
+    }
+  }
+
+  Future<void> _submitEvent() async {
+    final title = _eventTitleController.text.trim();
+    final description = _descriptionController.text.trim();
+    final location = _locationController.text.trim();
+    final startDate = _startDateController.text.trim();
+    final startTime = _startTimeController.text.trim();
+    final endDate = _endDateController.text.trim();
+    final endTime = _endTimeController.text.trim();
+
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter an event title'),
+          backgroundColor: AppColors.redButton,
+        ),
+      );
+      return;
+    }
+
+    if (description.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a description for the event'),
+          backgroundColor: AppColors.redButton,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final payload = {
+        'title': title,
+        'event_type': _selectedEventType,
+        'description': description,
+        'is_virtual': _isVirtual,
+        'location': location.isEmpty ? (_isVirtual ? 'Online Virtual Event' : 'TBD') : location,
+        'start_date': startDate.isEmpty ? 'TBD' : startDate,
+        'start_time': startTime.isEmpty ? 'TBD' : startTime,
+        'end_date': endDate.isEmpty ? 'TBD' : endDate,
+        'end_time': endTime.isEmpty ? 'TBD' : endTime,
+        'visibility': _selectedVisibility,
+      };
+
+      await ApiService.post('/api/v1/events', payload);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Event created successfully via Python Backend!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to create event: $e'),
+            backgroundColor: AppColors.redButton,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.homeScreenBg,
       appBar: SimpleHeader(
         config: HeaderConfig(
+          leading: GestureDetector(
+            onTap: () {
+              if (context.canPop()) {
+                context.pop();
+              }
+            },
+            child: Container(
+              width: 32.w,
+              height: 32.w,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.20),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.arrow_back_rounded,
+                  size: 18.sp,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
           title: Text(
             'Create Event',
             style: TextStyles.boldLarge.copyWith(color: AppColors.bodyBg),
@@ -74,7 +209,7 @@ class _CreateEventViewState extends State<CreateEventView> {
                   ),
                   SizedBox(height: 14.h),
                   _fieldLabel('Event Type'),
-                  _selectField('Select event type'),
+                  _eventTypeDropdown(),
                   SizedBox(height: 14.h),
                   _fieldLabel('Description'),
                   AppTextField(
@@ -126,7 +261,9 @@ class _CreateEventViewState extends State<CreateEventView> {
                   _fieldLabel('GPS Location / Address'),
                   AppTextField(
                     controller: _locationController,
-                    hintText: 'e.g., 123 Main St, City',
+                    hintText: _isVirtual
+                        ? 'Virtual Event Link / Platform'
+                        : 'e.g., 123 Main St, City',
                     fillColor: AppColors.authBackBg,
                     borderColor: AppColors.authBackBg,
                     focusedBorderColor: AppColors.authBackBg,
@@ -147,13 +284,18 @@ class _CreateEventViewState extends State<CreateEventView> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _fieldLabel('Start Date'),
-                            AppTextField(
-                              controller: _startDateController,
-                              hintText: '02/01/2026',
-                              fillColor: AppColors.authBackBg,
-                              borderColor: AppColors.authBackBg,
-                              focusedBorderColor: AppColors.authBackBg,
-                              borderRadius: 12.r,
+                            GestureDetector(
+                              onTap: () => _pickDate(_startDateController),
+                              child: AbsorbPointer(
+                                child: AppTextField(
+                                  controller: _startDateController,
+                                  hintText: 'Select date',
+                                  fillColor: AppColors.authBackBg,
+                                  borderColor: AppColors.authBackBg,
+                                  focusedBorderColor: AppColors.authBackBg,
+                                  borderRadius: 12.r,
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -164,13 +306,18 @@ class _CreateEventViewState extends State<CreateEventView> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _fieldLabel('Start Time'),
-                            AppTextField(
-                              controller: _startTimeController,
-                              hintText: '10:00 AM',
-                              fillColor: AppColors.authBackBg,
-                              borderColor: AppColors.authBackBg,
-                              focusedBorderColor: AppColors.authBackBg,
-                              borderRadius: 12.r,
+                            GestureDetector(
+                              onTap: () => _pickTime(_startTimeController),
+                              child: AbsorbPointer(
+                                child: AppTextField(
+                                  controller: _startTimeController,
+                                  hintText: 'Select time',
+                                  fillColor: AppColors.authBackBg,
+                                  borderColor: AppColors.authBackBg,
+                                  focusedBorderColor: AppColors.authBackBg,
+                                  borderRadius: 12.r,
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -185,13 +332,18 @@ class _CreateEventViewState extends State<CreateEventView> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _fieldLabel('End Date'),
-                            AppTextField(
-                              controller: _endDateController,
-                              hintText: '02/03/2026',
-                              fillColor: AppColors.authBackBg,
-                              borderColor: AppColors.authBackBg,
-                              focusedBorderColor: AppColors.authBackBg,
-                              borderRadius: 12.r,
+                            GestureDetector(
+                              onTap: () => _pickDate(_endDateController),
+                              child: AbsorbPointer(
+                                child: AppTextField(
+                                  controller: _endDateController,
+                                  hintText: 'Select date',
+                                  fillColor: AppColors.authBackBg,
+                                  borderColor: AppColors.authBackBg,
+                                  focusedBorderColor: AppColors.authBackBg,
+                                  borderRadius: 12.r,
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -202,13 +354,18 @@ class _CreateEventViewState extends State<CreateEventView> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _fieldLabel('End Time'),
-                            AppTextField(
-                              controller: _endTimeController,
-                              hintText: '16:00 PM',
-                              fillColor: AppColors.authBackBg,
-                              borderColor: AppColors.authBackBg,
-                              focusedBorderColor: AppColors.authBackBg,
-                              borderRadius: 12.r,
+                            GestureDetector(
+                              onTap: () => _pickTime(_endTimeController),
+                              child: AbsorbPointer(
+                                child: AppTextField(
+                                  controller: _endTimeController,
+                                  hintText: 'Select time',
+                                  fillColor: AppColors.authBackBg,
+                                  borderColor: AppColors.authBackBg,
+                                  focusedBorderColor: AppColors.authBackBg,
+                                  borderRadius: 12.r,
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -223,7 +380,7 @@ class _CreateEventViewState extends State<CreateEventView> {
               title: 'Visibility',
               leadingIcon: AppImages.eyeOutlinedIcon,
               child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
+                padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 4.h),
                 decoration: BoxDecoration(
                   color: AppColors.authBackBg,
                   borderRadius: BorderRadius.circular(12.r),
@@ -232,7 +389,7 @@ class _CreateEventViewState extends State<CreateEventView> {
                 child: DropdownButton<String>(
                   value: _selectedVisibility,
                   isExpanded: true,
-                  underline: SizedBox(),
+                  underline: const SizedBox(),
                   icon: Icon(
                     Icons.keyboard_arrow_down,
                     size: 18.sp,
@@ -267,15 +424,63 @@ class _CreateEventViewState extends State<CreateEventView> {
         child: Padding(
           padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 16.h),
           child: CustomButton(
-            btnText: 'Create Event',
+            btnText: _isSubmitting ? '' : 'Create Event',
             btnColor: AppColors.gradientColor1,
             borderRadius: 16.r,
             textStyle: TextStyles.semiBoldMedium.copyWith(
               color: AppColors.bodyBg,
             ),
-            onTap: () {},
+            onTap: _isSubmitting ? () {} : _submitEvent,
+            child: _isSubmitting
+                ? JumpingDotsProgress(
+                    text: 'Creating Event',
+                    textStyle: TextStyles.semiBoldMedium.copyWith(
+                      color: AppColors.bodyBg,
+                    ),
+                    dotColor: AppColors.bodyBg,
+                  )
+                : null,
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _eventTypeDropdown() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 4.h),
+      decoration: BoxDecoration(
+        color: AppColors.authBackBg,
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: AppColors.authBackBg),
+      ),
+      child: DropdownButton<String>(
+        value: _selectedEventType,
+        isExpanded: true,
+        underline: const SizedBox(),
+        icon: Icon(
+          Icons.keyboard_arrow_down,
+          size: 18.sp,
+          color: AppColors.greyText,
+        ),
+        items: _eventTypes.map((String value) {
+          return DropdownMenuItem<String>(
+            value: value,
+            child: Text(
+              value,
+              style: TextStyles.regularSmall.copyWith(
+                color: AppColors.lightText,
+              ),
+            ),
+          );
+        }).toList(),
+        onChanged: (String? newValue) {
+          if (newValue != null) {
+            setState(() {
+              _selectedEventType = newValue;
+            });
+          }
+        },
       ),
     );
   }
@@ -369,35 +574,6 @@ class _CreateEventViewState extends State<CreateEventView> {
       child: Text(
         text,
         style: TextStyles.regularSmall.copyWith(color: AppColors.lightText),
-      ),
-    );
-  }
-
-  Widget _selectField(String value) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
-      decoration: BoxDecoration(
-        color: AppColors.authBackBg,
-        borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: AppColors.authBackBg),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyles.regularSmall.copyWith(
-                color: AppColors.greyText,
-              ),
-            ),
-          ),
-          Image.asset(
-            AppImages.chevronIcon,
-            width: 16.w,
-            height: 16.h,
-            color: AppColors.greyText,
-          ),
-        ],
       ),
     );
   }

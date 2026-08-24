@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:vintage_app/core/components/global_header/header_config.dart';
 import 'package:vintage_app/core/components/global_header/header_controller_provider.dart';
 import 'package:vintage_app/core/components/includes/app_text_field.dart';
+import 'package:vintage_app/core/services/api_service.dart';
 import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/images.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
@@ -18,6 +19,46 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   bool _headerSet = false;
+  String _adminName = 'Admin';
+  String _ongoingEventsCount = '8';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchHomeData();
+  }
+
+  Future<void> _fetchHomeData() async {
+    try {
+      final profileRes = await ApiService.get('/api/v1/profile/me');
+      if (profileRes is Map && profileRes.containsKey('name')) {
+        final fullName = profileRes['name']?.toString() ?? 'Admin';
+        final firstName = fullName.trim().split(' ').first;
+        if (mounted && firstName.isNotEmpty) {
+          setState(() {
+            _adminName = firstName;
+          });
+          _updateHeader();
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching profile via Python FastAPI: $e");
+    }
+
+    try {
+      final eventsRes = await ApiService.get('/api/v1/events');
+      if (eventsRes is Map && eventsRes.containsKey('count')) {
+        final count = eventsRes['count']?.toString() ?? '8';
+        if (mounted) {
+          setState(() {
+            _ongoingEventsCount = count;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching events via Python FastAPI: $e");
+    }
+  }
 
   @override
   void dispose() {
@@ -32,7 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Hey Lori',
+              'Hey $_adminName',
               style: TextStyles.boldTitle.copyWith(
                 color: AppColors.bodyBg,
                 fontSize: 28.sp,
@@ -54,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(999.r),
           child: Image.asset(
-            AppImages.userImg,
+            AppImages.adminProfileImg,
             width: 48.w,
             height: 48.w,
             fit: BoxFit.cover,
@@ -146,7 +187,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _statCard(
           iconColor: null,
           label: 'Ongoing Events',
-          value: '8',
+          value: _ongoingEventsCount,
           badgeText: '+2',
           badgeBg: AppColors.badgeSuccessBg,
           badgeTextColor: AppColors.badgeSuccessText,
