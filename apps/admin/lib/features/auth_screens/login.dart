@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:vintage_app/core/components/includes/app_text_field.dart';
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
 import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/buttons/custom_button.dart';
 import 'package:vintage_app/core/theme/images.dart';
@@ -277,27 +278,27 @@ class _LoginScreenState extends State<LoginScreen> {
                     SizedBox(height: 22.h),
                     SizedBox(
                       width: double.infinity,
-                      child: _isLoading
-                          ? Center(
-                              child: Container(
-                                height: 52.h,
-                                alignment: Alignment.center,
-                                child: const CircularProgressIndicator(
-                                  color: AppColors.redButton,
+                      child: CustomButton(
+                        onTap: _isLoading ? () {} : _handleLogin,
+                        height: 52.h,
+                        borderRadius: 14.r,
+                        btnColor: AppColors.redButton,
+                        btnText: _isLoading ? '' : 'Sign In',
+                        textStyle: TextStyles.boldMedium.copyWith(
+                          color: Colors.white,
+                          fontSize: 16.sp,
+                        ),
+                        child: _isLoading
+                            ? JumpingDotsProgress(
+                                text: 'Signing in',
+                                textStyle: TextStyles.boldMedium.copyWith(
+                                  color: Colors.white,
+                                  fontSize: 16.sp,
                                 ),
-                              ),
-                            )
-                          : CustomButton(
-                              onTap: _handleLogin,
-                              height: 52.h,
-                              borderRadius: 14.r,
-                              btnColor: AppColors.redButton,
-                              btnText: 'Sign In',
-                              textStyle: TextStyles.boldMedium.copyWith(
-                                color: Colors.white,
-                                fontSize: 16.sp,
-                              ),
-                            ),
+                                dotColor: Colors.white,
+                              )
+                            : null,
+                      ),
                     ),
                     SizedBox(height: 26.h),
                     Row(

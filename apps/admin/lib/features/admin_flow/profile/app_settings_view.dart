@@ -2,20 +2,49 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:vintage_app/core/components/global_footer/footer_config.dart';
 import 'package:vintage_app/core/components/global_footer/global_footer.dart';
 import 'package:vintage_app/core/components/global_header/global_header.dart';
 import 'package:vintage_app/core/components/global_header/header_config.dart';
+import 'package:vintage_app/core/services/auth_service.dart';
 import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/images.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
 
-class AppSettingsView extends StatelessWidget {
+class AppSettingsView extends StatefulWidget {
   const AppSettingsView({super.key});
 
   @override
+  State<AppSettingsView> createState() => _AppSettingsViewState();
+}
+
+class _AppSettingsViewState extends State<AppSettingsView> {
+  final AuthService _authService = AuthService();
+
+  String _formatDate(DateTime? dt) {
+    if (dt == null) return 'N/A';
+    final months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+  }
+
+  String _formatTime(DateTime? dt) {
+    if (dt == null) return 'Time: N/A';
+    final hour = dt.hour == 0 ? 12 : (dt.hour > 12 ? dt.hour - 12 : dt.hour);
+    final period = dt.hour >= 12 ? 'PM' : 'AM';
+    final minute = dt.minute.toString().padLeft(2, '0');
+    return 'Time: $hour:$minute $period';
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
       appBar: SimpleHeader(
         config: HeaderConfig(
@@ -55,7 +84,57 @@ class AppSettingsView extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(14.w, 12.h, 14.w, 16.h),
         child: Column(
           children: [
-            _profileCard(context),
+            user != null
+                ? StreamBuilder<DocumentSnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('admins')
+                        .doc(user.uid)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      Map<String, dynamic>? adminData;
+                      if (snapshot.hasData && snapshot.data!.exists) {
+                        adminData = snapshot.data!.data() as Map<String, dynamic>?;
+                      }
+
+                      final name = adminData?['name'] ?? user.displayName ?? 'System Admin';
+                      final role = adminData?['role'] ?? 'Super Admin';
+                      final email = user.email ?? adminData?['email'] ?? 'admin@vintagevinne.com';
+                      final phone = adminData?['phone'] ?? '+1 (555) 000-0000';
+
+                      DateTime? joinedDate = user.metadata.creationTime;
+                      if (adminData?['createdAt'] is Timestamp) {
+                        joinedDate = (adminData!['createdAt'] as Timestamp).toDate();
+                      }
+
+                      DateTime? lastLoginDate = user.metadata.lastSignInTime;
+                      if (adminData?['lastLoginAt'] is Timestamp) {
+                        lastLoginDate = (adminData!['lastLoginAt'] as Timestamp).toDate();
+                      }
+
+                      return _profileCard(
+                        context: context,
+                        name: name,
+                        role: role,
+                        email: email,
+                        phone: phone,
+                        joinedDateStr: _formatDate(joinedDate),
+                        joinedTimeStr: _formatTime(joinedDate),
+                        lastLoginDateStr: _formatDate(lastLoginDate),
+                        lastLoginTimeStr: _formatTime(lastLoginDate),
+                      );
+                    },
+                  )
+                : _profileCard(
+                    context: context,
+                    name: 'System Admin',
+                    role: 'Super Admin',
+                    email: 'admin@vintagevinne.com',
+                    phone: '+1 (555) 000-0000',
+                    joinedDateStr: 'January 15, 2024',
+                    joinedTimeStr: 'Time: 10:45 AM',
+                    lastLoginDateStr: 'January 30, 2026',
+                    lastLoginTimeStr: 'Time: 10:45 AM',
+                  ),
             SizedBox(height: 10.h),
             _settingsTile(
               svgPath: 'assets/icons/admin_nav_users.svg',
@@ -101,7 +180,6 @@ class AppSettingsView extends StatelessWidget {
               subtitle: 'App preferences and configurations',
               onTap: () => context.push('/dealer/app-settings/preferences'),
             ),
-
             SizedBox(height: 14.h),
             _signOutButton(context),
             SizedBox(height: 16.h),
@@ -118,7 +196,17 @@ class AppSettingsView extends StatelessWidget {
     );
   }
 
-  Widget _profileCard(BuildContext context) {
+  Widget _profileCard({
+    required BuildContext context,
+    required String name,
+    required String role,
+    required String email,
+    required String phone,
+    required String joinedDateStr,
+    required String joinedTimeStr,
+    required String lastLoginDateStr,
+    required String lastLoginTimeStr,
+  }) {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(11.w, 12.h, 11.w, 10.h),
@@ -146,7 +234,7 @@ class AppSettingsView extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Admin User',
+                      name,
                       style: TextStyles.boldSmall.copyWith(
                         color: const Color(0xFF344054),
                         fontSize: 16.sp,
@@ -163,7 +251,7 @@ class AppSettingsView extends StatelessWidget {
                         borderRadius: BorderRadius.circular(3.r),
                       ),
                       child: Text(
-                        'Super Admin',
+                        role,
                         style: TextStyles.semiBoldExtraSmall.copyWith(
                           color: AppColors.bodyBg,
                           fontSize: 11.sp,
@@ -173,12 +261,12 @@ class AppSettingsView extends StatelessWidget {
                     SizedBox(height: 8.h),
                     _profileInfoLine(
                       icon: Icons.mail_outline_rounded,
-                      text: 'admin@vintagevinnie.com',
+                      text: email,
                     ),
                     SizedBox(height: 4.h),
                     _profileInfoLine(
                       icon: Icons.phone_outlined,
-                      text: '+1 (555) 000-0000',
+                      text: phone,
                     ),
                   ],
                 ),
@@ -196,8 +284,8 @@ class AppSettingsView extends StatelessWidget {
                   child: _dateBlock(
                     icon: Icons.calendar_month_outlined,
                     label: 'Joined',
-                    date: 'January 15, 2024',
-                    time: 'Time: 10:45 AM',
+                    date: joinedDateStr,
+                    time: joinedTimeStr,
                     color: const Color(0xFF4F79FF),
                   ),
                 ),
@@ -206,8 +294,8 @@ class AppSettingsView extends StatelessWidget {
                   child: _dateBlock(
                     icon: Icons.shield_outlined,
                     label: 'Last Login',
-                    date: 'January 30, 2026',
-                    time: 'Time: 10:45 AM',
+                    date: lastLoginDateStr,
+                    time: lastLoginTimeStr,
                     color: const Color(0xFF8200DB),
                   ),
                 ),
@@ -353,7 +441,6 @@ class AppSettingsView extends StatelessWidget {
                           )
                         : Icon(icon, size: 19.sp, color: iconColor),
               ),
-
               SizedBox(width: 13.w),
               Expanded(
                 child: Column(
@@ -397,7 +484,12 @@ class AppSettingsView extends StatelessWidget {
 
   Widget _signOutButton(BuildContext context) {
     return InkWell(
-      onTap: () => context.go('/login'),
+      onTap: () async {
+        await _authService.signOut();
+        if (context.mounted) {
+          context.go('/login');
+        }
+      },
       borderRadius: BorderRadius.circular(4.r),
       child: Container(
         width: double.infinity,

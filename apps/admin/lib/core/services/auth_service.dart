@@ -18,11 +18,10 @@ class AuthService {
       password: password,
     );
 
-    // Verify admin document exists in 'admins' collection
     if (credential.user != null) {
       final adminDoc = await _firestore.collection('admins').doc(credential.user!.uid).get();
       if (!adminDoc.exists) {
-        // Also check legacy/fallback 'users' collection if needed
+        // Fallback check in users collection
         final userDoc = await _firestore.collection('users').doc(credential.user!.uid).get();
         if (!userDoc.exists || userDoc.data()?['role'] != 'admin') {
           await _auth.signOut();
@@ -32,6 +31,11 @@ class AuthService {
           );
         }
       }
+
+      // Record lastLoginAt timestamp in Firestore
+      await _firestore.collection('admins').doc(credential.user!.uid).set({
+        'lastLoginAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     }
 
     return credential;
@@ -41,6 +45,7 @@ class AuthService {
     required String email,
     required String password,
     required String name,
+    String? phone,
   }) async {
     final credential = await _auth.createUserWithEmailAndPassword(
       email: email,
@@ -52,8 +57,10 @@ class AuthService {
         'uid': credential.user!.uid,
         'email': email,
         'name': name,
-        'role': 'admin',
+        'phone': phone ?? '+1 (555) 000-0000',
+        'role': 'Super Admin',
         'createdAt': FieldValue.serverTimestamp(),
+        'lastLoginAt': FieldValue.serverTimestamp(),
       });
     }
 
