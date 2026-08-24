@@ -1,0 +1,70 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -destination generic/platform=iOS archive -archivePath build/ios/archive/Runner.xcarchive
+
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (7 targets)
+    Target 'Runner' in project 'Runner'
+        ➜ Implicit dependency on target 'Pods-Runner' in project 'Pods' via file 'Pods_Runner.framework' in build phase 'Link Binary'
+        ➜ Implicit dependency on target 'camera_avfoundation' in project 'Pods' via options '-framework camera_avfoundation' in build setting 'OTHER_LDFLAGS'
+        ➜ Implicit dependency on target 'image_picker_ios' in project 'Pods' via options '-framework image_picker_ios' in build setting 'OTHER_LDFLAGS'
+    Target 'Pods-Runner' in project 'Pods'
+        ➜ Explicit dependency on target 'Flutter' in project 'Pods'
+        ➜ Explicit dependency on target 'camera_avfoundation' in project 'Pods'
+        ➜ Explicit dependency on target 'image_picker_ios' in project 'Pods'
+    Target 'image_picker_ios' in project 'Pods'
+        ➜ Explicit dependency on target 'Flutter' in project 'Pods'
+        ➜ Explicit dependency on target 'image_picker_ios-image_picker_ios_privacy' in project 'Pods'
+    Target 'image_picker_ios-image_picker_ios_privacy' in project 'Pods' (no dependencies)
+    Target 'camera_avfoundation' in project 'Pods'
+        ➜ Explicit dependency on target 'Flutter' in project 'Pods'
+        ➜ Explicit dependency on target 'camera_avfoundation-camera_avfoundation_privacy' in project 'Pods'
+    Target 'camera_avfoundation-camera_avfoundation_privacy' in project 'Pods' (no dependencies)
+    Target 'Flutter' in project 'Pods' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/ibtool --version --output-format xml1
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk -x objective-c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /Users/muhammadali3000/development/6- Lori Porter - Vintage Vinnie/VintageVinnieAdminMobileApplication-main/ios/Runner/Assets.xcassets
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/libtool -V
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --version --output-format xml1
+
+Build description signature: 87bc91db6e02818018505f5a281a6357
+Build description path: /Users/muhammadali3000/Library/Developer/Xcode/DerivedData/Runner-cyvhqkbgturgsjafypaisovznjmj/Build/Intermediates.noindex/ArchiveIntermediates/Runner/IntermediateBuildFilesPath/XCBuildData/87bc91db6e02818018505f5a281a6357.xcbuilddata
+error: Multiple commands produce '/Users/muhammadali3000/Library/Developer/Xcode/DerivedData/Runner-cyvhqkbgturgsjafypaisovznjmj/Build/Intermediates.noindex/ArchiveIntermediates/Runner/InstallationBuildProductsLocation/Applications/.app'
+    note: Target 'Runner' (project 'Runner') has create directory command with output '/Users/muhammadali3000/Library/Developer/Xcode/DerivedData/Runner-cyvhqkbgturgsjafypaisovznjmj/Build/Intermediates.noindex/ArchiveIntermediates/Runner/InstallationBuildProductsLocation/Applications/.app'
+    note: Target 'Runner' (project 'Runner') has link command with output '/Users/muhammadali3000/Library/Developer/Xcode/DerivedData/Runner-cyvhqkbgturgsjafypaisovznjmj/Build/Intermediates.noindex/ArchiveIntermediates/Runner/InstallationBuildProductsLocation/Applications/.app'
+note: Run script build phase 'Thin Binary' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'Runner' from project 'Runner')
+note: Run script build phase 'Run Script' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'Runner' from project 'Runner')
+warning: duplicate output file '/Users/muhammadali3000/Library/Developer/Xcode/DerivedData/Runner-cyvhqkbgturgsjafypaisovznjmj/Build/Intermediates.noindex/ArchiveIntermediates/Runner/InstallationBuildProductsLocation/Applications/.app' on task: Ld /Users/muhammadali3000/Library/Developer/Xcode/DerivedData/Runner-cyvhqkbgturgsjafypaisovznjmj/Build/Intermediates.noindex/ArchiveIntermediates/Runner/InstallationBuildProductsLocation/Applications/.app normal (in target 'Runner' from project 'Runner')
+** ARCHIVE FAILED **
+
+
+The following build commands failed:
+	Archiving workspace Runner with scheme Runner
+(1 failure)

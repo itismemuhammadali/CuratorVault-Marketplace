@@ -1,0 +1,79 @@
+default_platform(:ios)
+
+platform :ios do
+  lane :sync_certs do
+    key_file = ENV['APP_STORE_CONNECT_KEY_PATH'] || "/Users/muhammadali3000/development/6- Lori Porter - Vintage Vinnie/AuthKey_8SN48M7W52.p8"
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV['APP_STORE_CONNECT_API_KEY_KEY_ID'] || "8SN48M7W52",
+      issuer_id: ENV['APP_STORE_CONNECT_API_KEY_ISSUER_ID'] || "cf2b889c-af2f-48ff-aaee-a47437333370",
+      key_filepath: key_file
+    )
+
+    match(
+      type: "appstore",
+      git_url: "https://github.com/saeeedmuhammadali2003-tech/vintage_vinnie_certificates.git",
+      app_identifier: "com.vintagevinnie.admin",
+      readonly: false,
+      api_key: api_key
+    )
+  end
+
+  lane :build_app_only do
+    key_file = ENV['APP_STORE_CONNECT_KEY_PATH'] || "/Users/muhammadali3000/development/6- Lori Porter - Vintage Vinnie/AuthKey_8SN48M7W52.p8"
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV['APP_STORE_CONNECT_API_KEY_KEY_ID'] || "8SN48M7W52",
+      issuer_id: ENV['APP_STORE_CONNECT_API_KEY_ISSUER_ID'] || "cf2b889c-af2f-48ff-aaee-a47437333370",
+      key_filepath: key_file
+    )
+
+    is_ci = ENV['CI'] == 'true'
+
+    match(
+      type: "appstore",
+      git_url: "https://github.com/saeeedmuhammadali2003-tech/vintage_vinnie_certificates.git",
+      app_identifier: "com.vintagevinnie.admin",
+      readonly: is_ci,
+      api_key: api_key
+    )
+
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "Runner.xcodeproj",
+      team_id: "74F5LJURQV",
+      bundle_identifier: "com.vintagevinnie.admin",
+      code_sign_identity: "Apple Distribution: Lori Porter (74F5LJURQV)",
+      profile_name: "match AppStore com.vintagevinnie.admin"
+    )
+
+    plist_path = File.expand_path("../ExportOptions.plist", __dir__)
+
+    ENV.delete('GEM_HOME')
+    ENV.delete('GEM_PATH')
+    ENV.delete('BUNDLE_GEMFILE')
+    ENV.delete('BUNDLE_BIN_PATH')
+    ENV.delete('RUBYOPT')
+
+    sh("cd .. && flutter build ipa --release --export-options-plist=\"#{plist_path}\"")
+  end
+
+  lane :upload_app_only do
+    key_file = ENV['APP_STORE_CONNECT_KEY_PATH'] || "/Users/muhammadali3000/development/6- Lori Porter - Vintage Vinnie/AuthKey_8SN48M7W52.p8"
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV['APP_STORE_CONNECT_API_KEY_KEY_ID'] || "8SN48M7W52",
+      issuer_id: ENV['APP_STORE_CONNECT_API_KEY_ISSUER_ID'] || "cf2b889c-af2f-48ff-aaee-a47437333370",
+      key_filepath: key_file
+    )
+
+    ipa_path = File.expand_path("../../build/ios/ipa/Vintage Vinnie Admin.ipa", __dir__)
+    UI.user_error!("No IPA found at #{ipa_path}") unless File.exist?(ipa_path)
+
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: ipa_path,
+      skip_waiting_for_build_processing: true
+    )
+  end
+end

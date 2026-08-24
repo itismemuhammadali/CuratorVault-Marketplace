@@ -1,0 +1,65 @@
+default_platform(:ios)
+
+platform :ios do
+  lane :build_app_only do
+    key_file = ENV['APP_STORE_CONNECT_KEY_PATH'] || "/Users/muhammadali3000/development/6- Lori Porter - Vintage Vinnie/AuthKey_8SN48M7W52.p8"
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV['APP_STORE_CONNECT_API_KEY_KEY_ID'] || "8SN48M7W52",
+      issuer_id: ENV['APP_STORE_CONNECT_API_KEY_ISSUER_ID'] || "cf2b889c-af2f-48ff-aaee-a47437333370",
+      key_filepath: key_file
+    )
+
+    is_ci = ENV['CI'] == 'true'
+
+    match(
+      type: "appstore",
+      git_url: "https://github.com/saeeedmuhammadali2003-tech/vintage_vinnie_certificates.git",
+      app_identifier: "com.vintagevinnie.dealer",
+      readonly: is_ci,
+      api_key: api_key
+    )
+
+    # Explicitly force manual signing settings in the Xcode project
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "Runner.xcodeproj",
+      team_id: "74F5LJURQV",
+      bundle_identifier: "com.vintagevinnie.dealer",
+      code_sign_identity: "Apple Distribution: Lori Porter (74F5LJURQV)",
+      profile_name: "match AppStore com.vintagevinnie.dealer"
+    )
+
+    plist_path = File.expand_path("../ExportOptions.plist", __dir__)
+
+    # Clear fastlane's GEM_PATH so CocoaPods can use its own bundled environment
+    ENV.delete('GEM_HOME')
+    ENV.delete('GEM_PATH')
+    ENV.delete('BUNDLE_GEMFILE')
+    ENV.delete('BUNDLE_BIN_PATH')
+    ENV.delete('RUBYOPT')
+
+    sh("cd .. && flutter build ipa --release --export-options-plist=\"#{plist_path}\"")
+  end
+
+  lane :upload_app_only do
+    key_file = ENV['APP_STORE_CONNECT_KEY_PATH'] || "/Users/muhammadali3000/development/6- Lori Porter - Vintage Vinnie/AuthKey_8SN48M7W52.p8"
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV['APP_STORE_CONNECT_API_KEY_KEY_ID'] || "8SN48M7W52",
+      issuer_id: ENV['APP_STORE_CONNECT_API_KEY_ISSUER_ID'] || "cf2b889c-af2f-48ff-aaee-a47437333370",
+      key_filepath: key_file
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: "../build/ios/ipa/Vintage Vinnie Dealer.ipa",
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  lane :deploy do
+    build_app_only
+    upload_app_only
+  end
+end

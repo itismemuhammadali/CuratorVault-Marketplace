@@ -1,0 +1,137 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:vintage_app/core/theme/app_colors.dart';
+import 'package:vintage_app/core/theme/text_styles.dart';
+
+class AppTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final String? labelText;
+  final String hintText;
+  final TextInputType keyboardType;
+  final Widget? prefix;
+  final Widget? suffix;
+  final bool obscureText;
+  final bool enabled;
+  final int maxLines;
+  final TextCapitalization textCapitalization;
+  final ValueChanged<String>? onChanged;
+  final Color? fillColor;
+  final Color? borderColor;
+  final Color? focusedBorderColor;
+  final EdgeInsetsGeometry? contentPadding;
+  final double? borderRadius;
+  final TextStyle? labelStyle;
+  final TextStyle? hintStyle;
+
+  const AppTextField({
+    super.key,
+    required this.controller,
+    this.labelText,
+    required this.hintText,
+    this.keyboardType = TextInputType.text,
+    this.prefix,
+    this.suffix,
+    this.obscureText = false,
+    this.enabled = true,
+    this.maxLines = 1,
+    this.textCapitalization = TextCapitalization.none,
+    this.onChanged,
+    this.fillColor,
+    this.borderColor,
+    this.focusedBorderColor,
+    this.contentPadding,
+    this.borderRadius,
+    this.labelStyle,
+    this.hintStyle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = (borderRadius ?? 8.r);
+    final effectiveBorderColor = borderColor ?? AppColors.authBackBg;
+    final effectiveFocusedBorderColor =
+        focusedBorderColor ?? AppColors.redButton;
+
+    final field = TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      obscureText: obscureText,
+      enabled: enabled,
+      maxLines: maxLines,
+      textCapitalization: textCapitalization,
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        hintText: hintText,
+        hintStyle:
+            hintStyle ??
+            TextStyles.regularSmall.copyWith(
+              color: AppColors.greyText,
+            ),
+        prefixIcon: prefix != null
+            ? Center(
+                widthFactor: 1.0,
+                heightFactor: 1.0,
+                child: prefix!,
+              )
+            : null,
+        prefixIconConstraints: prefix == null
+            ? null
+            : BoxConstraints(
+                minWidth: 44.w,
+                minHeight: 44.h,
+              ),
+        suffixIcon: suffix != null
+            ? Center(
+                widthFactor: 1.0,
+                heightFactor: 1.0,
+                child: suffix!,
+              )
+            : null,
+        suffixIconConstraints: suffix == null
+            ? null
+            : BoxConstraints(
+                minWidth: 44.w,
+                minHeight: 44.h,
+              ),
+
+        filled: true,
+        fillColor: fillColor ?? Colors.white,
+        contentPadding:
+            contentPadding ??
+            EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radius),
+          borderSide: BorderSide(color: effectiveBorderColor),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radius),
+          borderSide: BorderSide(color: effectiveBorderColor),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radius),
+          borderSide: BorderSide(color: effectiveFocusedBorderColor, width: 1.2),
+        ),
+      ),
+    );
+
+    if (labelText == null || labelText!.trim().isEmpty) {
+      return field;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          labelText!,
+          style:
+              labelStyle ??
+              TextStyles.boldSmall.copyWith(
+                color: AppColors.lightText,
+              ),
+        ),
+        SizedBox(height: 8.h),
+        field,
+      ],
+    );
+  }
+}

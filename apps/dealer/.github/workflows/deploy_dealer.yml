@@ -1,0 +1,71 @@
+name: Deploy Dealer Application to TestFlight & App Store
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy-ios:
+    name: Build & Deploy Dealer iOS App to App Store Connect
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Set up App Store Connect API Key
+        env:
+          APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
+          APP_STORE_CONNECT_BASE64: ${{ secrets.APP_STORE_CONNECT_BASE64 }}
+        run: |
+          P8_PATH="$RUNNER_TEMP/AuthKey_${APP_STORE_CONNECT_API_KEY_KEY_ID}.p8"
+          echo -n "$APP_STORE_CONNECT_BASE64" | base64 --decode > "$P8_PATH"
+          echo "APP_STORE_CONNECT_KEY_PATH=$P8_PATH" >> $GITHUB_ENV
+
+      - name: Install Certificates & Provisioning Profile (fastlane match)
+        env:
+          APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+        run: |
+          cd ios
+          fastlane match appstore \
+            --git_url "https://github.com/saeeedmuhammadali2003-tech/vintage_vinnie_certificates.git" \
+            --app_identifier "com.vintagevinnie.dealer" \
+            --readonly true
+
+      - name: Build iOS IPA
+        env:
+          APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+        run: |
+          cd ios
+          fastlane build_app_only
+
+      - name: Upload IPA to TestFlight
+        env:
+          APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+        run: |
+          cd ios
+          fastlane upload_app_only

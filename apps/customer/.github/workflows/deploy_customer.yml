@@ -1,0 +1,48 @@
+name: Deploy Customer Application to TestFlight & App Store
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy-ios:
+    name: Build & Deploy Customer iOS App to App Store Connect
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Validate code (Flutter Analyze)
+        run: flutter analyze
+
+      - name: Build & Deploy to TestFlight via Fastlane
+        env:
+          APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+          APP_STORE_CONNECT_BASE64: ${{ secrets.APP_STORE_CONNECT_BASE64 }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+        run: |
+          P8_PATH="$RUNNER_TEMP/AuthKey_${APP_STORE_CONNECT_API_KEY_KEY_ID}.p8"
+          echo -n "$APP_STORE_CONNECT_BASE64" | base64 --decode > "$P8_PATH"
+          export APP_STORE_CONNECT_KEY_PATH="$P8_PATH"
+          cd ios
+          fastlane deploy

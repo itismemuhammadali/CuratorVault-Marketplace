@@ -1,0 +1,61 @@
+# macOS / OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Keys, certificates, and credentials
+*.p8
+*.pem
+*.key
+*.keystore
+*.jks
+*.p12
+*.mobileprovision
+
+# Environment and local config files
+.env
+.env.*
+!.env.example
+**/android/local.properties
+**/ephemeral/
+
+# Flutter / Dart build artifacts
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/.pub-cache/
+**/.pub/
+
+# CocoaPods & iOS build outputs
+**/ios/Pods/
+**/ios/Podfile.lock
+**/ios/.symlinks/
+**/ios/Runner.xcworkspace/xcuserdata/
+**/DerivedData/
+
+# Android generated files
+**/android/.gradle/
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+**/.kotlin/
+
+
+# Binaries and Releases
+builds/
+*.apk
+*.aab
+*.ipa
