@@ -64,6 +64,15 @@ builds/
 *-debug.log
 emulator-data/
 
+# Node.js dependencies
+**/node_modules/
+node_modules/
+
+# Python Virtual Environments & Caches
+.venv/
+**/__pycache__/
+*.pyc
+
 # Python Virtual Environments & Caches
 .venv/
 **/__pycache__/
