@@ -7,6 +7,8 @@ import 'package:vintage_app/core/components/global_footer/footer_config.dart';
 import 'package:vintage_app/core/components/global_footer/global_footer.dart';
 import 'package:vintage_app/core/components/global_header/global_header.dart';
 import 'package:vintage_app/core/components/global_header/header_config.dart';
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
+import 'package:vintage_app/core/services/api_service.dart';
 import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
 import 'package:vintage_app/features/admin_flow/events/widgets/cancel_event_sheet.dart';
@@ -20,61 +22,71 @@ class AllEventsView extends StatefulWidget {
 
 class _AllEventsViewState extends State<AllEventsView> {
   int _selectedTab = 0;
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<_EventData> _events = [];
 
-  final List<_EventData> _events = const [
-    _EventData(
-      id: '1',
-      title: 'Downtown AR Treasure Hunt',
-      label: 'AR Hunt',
-      location: 'Downtown District',
-      dateText: '2/1/2026 - 2/3/2026',
-      participantsText: '145 participants',
-      rewardText: 'Reward: 500 Points',
-      accentColor: AppColors.eventPink,
-      backgroundColor: AppColors.eventPinkBg,
-      status: _EventStatus.upcoming,
-    ),
-    _EventData(
-      id: '2',
-      title: 'Historical Landmark Tour',
-      label: 'Landmark Adventure',
-      location: 'Old Town',
-      dateText: '4/10/2026 - 4/12/2026',
-      participantsText: '120 participants',
-      rewardText: 'Reward: 400 Points',
-      accentColor: AppColors.eventGreen,
-      backgroundColor: AppColors.eventGreenBg,
-      status: _EventStatus.upcoming,
-    ),
-    _EventData(
-      id: '3',
-      title: 'Collectors Market Walk',
-      label: 'Live Event',
-      location: 'Vintage Quarter',
-      dateText: '4/13/2026 - 4/14/2026',
-      participantsText: '98 participants',
-      rewardText: 'Reward: 350 Points',
-      accentColor: AppColors.eventOngoing,
-      backgroundColor: AppColors.eventOngoingBg,
-      status: _EventStatus.ongoing,
-    ),
-    _EventData(
-      id: '4',
-      title: 'Antique Showcase Night',
-      label: 'Showcase',
-      location: 'Heritage Hall',
-      dateText: '1/18/2026 - 1/19/2026',
-      participantsText: '210 participants',
-      rewardText: 'Reward: 300 Points',
-      accentColor: AppColors.eventAmber,
-      backgroundColor: AppColors.eventAmberBg,
-      status: _EventStatus.past,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetchEvents();
+  }
+
+  Future<void> _fetchEvents() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final res = await ApiService.get('/api/v1/events');
+      if (res is Map && res.containsKey('events') && res['events'] is List) {
+        final rawList = res['events'] as List;
+        final parsed = rawList
+            .map((item) => _EventData.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+
+        if (mounted) {
+          setState(() {
+            _events = parsed;
+            _isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _events = [];
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching events from backend: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   List<_EventData> get _visibleEvents {
     final status = _EventStatus.values[_selectedTab];
     return _events.where((event) => event.status == status).toList();
+  }
+
+  String _tabTitle(int index) {
+    switch (index) {
+      case 0:
+        return 'Upcoming';
+      case 1:
+        return 'Ongoing';
+      case 2:
+        return 'Past';
+      default:
+        return '';
+    }
   }
 
   @override
@@ -109,20 +121,42 @@ class _AllEventsViewState extends State<AllEventsView> {
       body: SafeArea(
         top: false,
         bottom: false,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 26.h),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _createEventButton(),
-              SizedBox(height: 20.h),
-              _tabs(),
-              SizedBox(height: 18.h),
-              for (final event in _visibleEvents) ...[
-                _eventCard(event),
+        child: RefreshIndicator(
+          onRefresh: _fetchEvents,
+          color: AppColors.gradientColor1,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 26.h),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _createEventButton(),
+                SizedBox(height: 20.h),
+                _tabs(),
                 SizedBox(height: 18.h),
+                if (_isLoading)
+                  Container(
+                    height: 220.h,
+                    alignment: Alignment.center,
+                    child: JumpingDotsProgress(
+                      text: 'Loading Events',
+                      textStyle: TextStyles.semiBoldMedium.copyWith(
+                        color: AppColors.lightText,
+                      ),
+                      dotColor: AppColors.gradientColor1,
+                    ),
+                  )
+                else if (_errorMessage != null && _events.isEmpty)
+                  _errorCard()
+                else if (_visibleEvents.isEmpty)
+                  _emptyStateCard()
+                else
+                  for (final event in _visibleEvents) ...[
+                    _eventCard(event),
+                    SizedBox(height: 18.h),
+                  ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -132,7 +166,10 @@ class _AllEventsViewState extends State<AllEventsView> {
 
   Widget _createEventButton() {
     return GestureDetector(
-      onTap: () => context.push('/events/create'),
+      onTap: () async {
+        await context.push('/events/create');
+        _fetchEvents();
+      },
       child: Container(
         width: double.infinity,
         height: 50.h,
@@ -212,6 +249,85 @@ class _AllEventsViewState extends State<AllEventsView> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _emptyStateCard() {
+    final tabName = _tabTitle(_selectedTab);
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(vertical: 40.h, horizontal: 20.w),
+      decoration: BoxDecoration(
+        color: AppColors.eventChipBg,
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.event_note_outlined,
+            size: 48.sp,
+            color: AppColors.greyText,
+          ),
+          SizedBox(height: 12.h),
+          Text(
+            'No $tabName Events',
+            style: TextStyles.boldMedium.copyWith(
+              color: AppColors.lightText,
+              fontSize: 16.sp,
+            ),
+          ),
+          SizedBox(height: 6.h),
+          Text(
+            'Events categorized as $tabName will appear here.',
+            textAlign: TextAlign.center,
+            style: TextStyles.regularSmall.copyWith(
+              color: AppColors.greyText,
+              fontSize: 13.sp,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _errorCard() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(vertical: 30.h, horizontal: 20.w),
+      decoration: BoxDecoration(
+        color: AppColors.eventPinkBg,
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: AppColors.eventPink),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.error_outline, size: 40.sp, color: AppColors.eventPink),
+          SizedBox(height: 10.h),
+          Text(
+            'Failed to load events',
+            style: TextStyles.boldMedium.copyWith(color: AppColors.lightText),
+          ),
+          SizedBox(height: 6.h),
+          Text(
+            _errorMessage ?? '',
+            textAlign: TextAlign.center,
+            style: TextStyles.regularSmall.copyWith(color: AppColors.greyText),
+          ),
+          SizedBox(height: 12.h),
+          ElevatedButton(
+            onPressed: _fetchEvents,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.gradientColor1,
+            ),
+            child: Text(
+              'Retry',
+              style: TextStyles.regularSmall.copyWith(color: AppColors.bodyBg),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -374,20 +490,24 @@ class _AllEventsViewState extends State<AllEventsView> {
     );
   }
 
-  void _handleEventAction(_EventAction action, _EventData event) {
+  void _handleEventAction(_EventAction action, _EventData event) async {
     switch (action) {
       case _EventAction.edit:
-        context.push('/events/${event.id}/edit');
+        await context.push('/events/${event.id}/edit');
+        _fetchEvents();
       case _EventAction.participants:
-        context.push('/events/${event.id}/participants');
+        await context.push('/events/${event.id}/participants');
       case _EventAction.cancel:
-        showEventCancelSheet(context);
+        showEventCancelSheet(
+          context,
+          eventId: event.id,
+          eventTitle: event.title,
+          onCancelled: _fetchEvents,
+        );
     }
   }
 
   Widget _infoRow(String svgAsset, String text) {
-
-
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -401,17 +521,20 @@ class _AllEventsViewState extends State<AllEventsView> {
           ),
         ),
         SizedBox(width: 10.w),
-        Text(
-          text,
-          style: TextStyles.regularSmall.copyWith(
-            color: AppColors.eventMetaText,
-            fontSize: 14.sp,
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyles.regularSmall.copyWith(
+              color: AppColors.eventMetaText,
+              fontSize: 14.sp,
+            ),
           ),
         ),
       ],
     );
   }
-
 }
 
 class _EventData {
@@ -438,6 +561,107 @@ class _EventData {
     required this.backgroundColor,
     required this.status,
   });
+
+  factory _EventData.fromJson(Map<String, dynamic> json) {
+    final statusRaw = (json['status'] ?? '').toString().toLowerCase().trim();
+    _EventStatus status;
+    if (statusRaw == 'ongoing') {
+      status = _EventStatus.ongoing;
+    } else if (statusRaw == 'past') {
+      status = _EventStatus.past;
+    } else if (statusRaw == 'upcoming') {
+      status = _EventStatus.upcoming;
+    } else {
+      status = _parseStatus(json['start_date']?.toString(), json['end_date']?.toString());
+    }
+
+    final title = (json['title'] ?? 'Untitled Event').toString();
+    final eventType = (json['event_type'] ?? 'General').toString();
+    final location = (json['location'] != null && json['location'].toString().isNotEmpty)
+        ? json['location'].toString()
+        : (json['is_virtual'] == true ? 'Online Virtual Event' : 'TBD');
+
+    final startDate = json['start_date']?.toString() ?? '';
+    final endDate = json['end_date']?.toString() ?? '';
+    String dateText;
+    if (startDate.isNotEmpty && endDate.isNotEmpty && startDate != 'TBD' && endDate != 'TBD') {
+      dateText = '$startDate - $endDate';
+    } else if (startDate.isNotEmpty && startDate != 'TBD') {
+      dateText = startDate;
+    } else {
+      dateText = 'Flexible / Ongoing';
+    }
+
+    final participantsCount = json['participants_count'] ?? 0;
+    final reward = json['reward_points'] ?? 500;
+
+    Color accentColor;
+    Color backgroundColor;
+    switch (status) {
+      case _EventStatus.upcoming:
+        accentColor = AppColors.eventPink;
+        backgroundColor = AppColors.eventPinkBg;
+      case _EventStatus.ongoing:
+        accentColor = AppColors.eventOngoing;
+        backgroundColor = AppColors.eventOngoingBg;
+      case _EventStatus.past:
+        accentColor = AppColors.eventAmber;
+        backgroundColor = AppColors.eventAmberBg;
+    }
+
+    return _EventData(
+      id: json['id']?.toString() ?? '',
+      title: title,
+      label: eventType,
+      location: location,
+      dateText: dateText,
+      participantsText: '$participantsCount participants',
+      rewardText: 'Reward: $reward Points',
+      accentColor: accentColor,
+      backgroundColor: backgroundColor,
+      status: status,
+    );
+  }
+
+  static _EventStatus _parseStatus(String? start, String? end) {
+    if (start == null || start.isEmpty || start == 'TBD') {
+      return _EventStatus.upcoming;
+    }
+    try {
+      final now = DateTime.now();
+      DateTime? parse(String s) {
+        final parts = s.split('/');
+        if (parts.length == 3) {
+          final m = int.tryParse(parts[0]);
+          final d = int.tryParse(parts[1]);
+          final y = int.tryParse(parts[2]);
+          if (m != null && d != null && y != null) {
+            return DateTime(y, m, d);
+          }
+        }
+        return DateTime.tryParse(s);
+      }
+
+      final startDate = parse(start);
+      final endDate = end != null ? parse(end) : null;
+
+      final today = DateTime(now.year, now.month, now.day);
+      if (startDate != null) {
+        final startDay = DateTime(startDate.year, startDate.month, startDate.day);
+        if (today.isBefore(startDay)) {
+          return _EventStatus.upcoming;
+        }
+        if (endDate != null) {
+          final endDay = DateTime(endDate.year, endDate.month, endDate.day);
+          if (today.isAfter(endDay)) {
+            return _EventStatus.past;
+          }
+        }
+        return _EventStatus.ongoing;
+      }
+    } catch (_) {}
+    return _EventStatus.upcoming;
+  }
 }
 
 enum _EventStatus { upcoming, ongoing, past }

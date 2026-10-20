@@ -6,8 +6,117 @@ import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/images.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
 
-class ProfileView extends StatelessWidget {
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:vintage_app/core/services/api_service.dart';
+import 'package:vintage_app/core/services/auth_service.dart';
+
+class ProfileView extends StatefulWidget {
   const ProfileView({super.key});
+
+  @override
+  State<ProfileView> createState() => _ProfileViewState();
+}
+
+class _ProfileViewState extends State<ProfileView> {
+  String _storeName = 'Antique Dealer Shop';
+  String _ownerName = 'Dealer';
+  String _handle = '@antiquedealershop';
+  String _email = 'dealer@antiques.com';
+  String _phone = '+1 (555) 123-4567';
+  String _location = 'New York, United States';
+  String _salesCount = '48';
+  String _rating = '4.9 ★';
+  String _activeListings = '24';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileData();
+  }
+
+  Future<void> _loadProfileData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      setState(() {
+        if (user.email != null && user.email!.isNotEmpty) {
+          _email = user.email!;
+        }
+        if (user.displayName != null && user.displayName!.isNotEmpty) {
+          _ownerName = user.displayName!;
+          _storeName = user.displayName!;
+          _handle = '@${user.displayName!.toLowerCase().replaceAll(' ', '')}';
+        }
+      });
+    }
+
+    try {
+      final res = await ApiService.get('/api/v1/profile/me');
+      if (res is Map && mounted) {
+        final data = Map<String, dynamic>.from(res);
+        setState(() {
+          _storeName = (data['storeName'] ?? data['name'] ?? _storeName).toString();
+          _ownerName = (data['ownerName'] ?? data['name'] ?? _ownerName).toString();
+          _email = (data['email'] ?? _email).toString();
+          _phone = (data['phone'] ?? _phone).toString();
+          _location = (data['location'] ?? _location).toString();
+          _salesCount = (data['salesCount'] ?? '48').toString();
+          _rating = '${data['rating'] ?? '4.9'} ★';
+          _activeListings = (data['activeListings'] ?? '24').toString();
+          _handle = '@${_storeName.toLowerCase().replaceAll(' ', '')}';
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading dealer profile: $e');
+    }
+  }
+
+  Future<void> _showSignOutDialog() async {
+    final shouldSignOut = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+        ),
+        title: Text(
+          'Sign Out',
+          style: TextStyles.boldMedium.copyWith(fontSize: 18.sp),
+        ),
+        content: Text(
+          'Are you sure you want to sign out of your dealer account?',
+          style: TextStyles.regularMedium.copyWith(color: AppColors.greyText),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: TextStyles.mediumSmall.copyWith(color: AppColors.greyText),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.redButton,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10.r),
+              ),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              'Sign Out',
+              style: TextStyles.boldSmall.copyWith(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSignOut == true && mounted) {
+      await AuthService().signOut();
+      if (mounted) {
+        context.go('/login');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -195,7 +304,7 @@ class ProfileView extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'Antique Dealer Shop',
+                _storeName,
                 style: TextStyles.boldMedium.copyWith(
                   color: AppColors.lightText,
                   fontSize: 18.sp,
@@ -207,44 +316,47 @@ class ProfileView extends StatelessWidget {
           ),
           SizedBox(height: 5.h),
           Text(
-            '@antiquedealershop',
+            _handle,
             style: TextStyles.regularMedium.copyWith(color: AppColors.greyText),
           ),
           SizedBox(height: 16.h),
           Row(
-            children: const [
+            children: [
               Expanded(
                 child: _MetricChip(
-                  value: '48',
+                  value: _salesCount,
                   label: 'Sales',
-                  bg: Color(0xFFE5EEF9),
-                  valueColor: Color(0xFF2563EB),
-                  labelColor: Color(0xFF2563EB),
+                  bg: const Color(0xFFE5EEF9),
+                  valueColor: const Color(0xFF2563EB),
+                  labelColor: const Color(0xFF2563EB),
                 ),
               ),
               Expanded(
                 child: _MetricChip(
-                  value: '4.9 ★',
+                  value: _rating,
                   label: 'Rating',
-                  bg: Color(0xFFFFF2D8),
-                  valueColor: Color(0xFFF59E0B),
-                  labelColor: Color(0xFFF59E0B),
+                  bg: const Color(0xFFFFF2D8),
+                  valueColor: const Color(0xFFF59E0B),
+                  labelColor: const Color(0xFFF59E0B),
                 ),
               ),
               Expanded(
                 child: _MetricChip(
-                  value: '24',
+                  value: _activeListings,
                   label: 'Active',
-                  bg: Color(0xFFE3F7E8),
-                  valueColor: Color(0xFF16A34A),
-                  labelColor: Color(0xFF16A34A),
+                  bg: const Color(0xFFE3F7E8),
+                  valueColor: const Color(0xFF16A34A),
+                  labelColor: const Color(0xFF16A34A),
                 ),
               ),
             ],
           ),
           SizedBox(height: 14.h),
           GestureDetector(
-            onTap: () => context.push('/dealer/editprofile'),
+            onTap: () async {
+              await context.push('/dealer/editprofile');
+              _loadProfileData();
+            },
             child: Container(
               width: double.infinity,
               height: 54.h,
@@ -304,7 +416,7 @@ class ProfileView extends StatelessWidget {
             icon: null,
             iconBg: const Color(0xFFD946EF),
             title: 'Location',
-            value: 'New York, United States',
+            value: _location,
           ),
           SizedBox(height: 14.h),
           _businessRow(
@@ -312,7 +424,7 @@ class ProfileView extends StatelessWidget {
             svgIcon: null,
             iconBg: const Color(0xFF10B981),
             title: 'Phone',
-            value: '+1 (555) 123-4567',
+            value: _phone,
           ),
           SizedBox(height: 14.h),
           _businessRow(
@@ -320,7 +432,7 @@ class ProfileView extends StatelessWidget {
             svgIcon: null,
             iconBg: const Color(0xFF4F79FF),
             title: 'Email',
-            value: 'dealer@antiques.com',
+            value: _email,
           ),
         ],
       ),
@@ -482,6 +594,13 @@ class ProfileView extends StatelessWidget {
             iconColor: const Color(0xFF4A5565),
           ),
           _settingsRow(
+            icon: Icons.notifications_active_outlined,
+            svgIcon: null,
+            label: 'Dealer Alerts',
+            onTap: () => context.push('/dealer/notifications'),
+            iconColor: const Color(0xFF4A5565),
+          ),
+          _settingsRow(
             icon: Icons.settings_outlined,
             svgIcon: null,
             label: 'App Settings',
@@ -494,7 +613,7 @@ class ProfileView extends StatelessWidget {
             labelColor: AppColors.redButton,
             iconColor: AppColors.redButton,
             chevronColor: AppColors.redButton,
-            onTap: () => context.go('/login'),
+            onTap: _showSignOutDialog,
             isLast: true,
           ),
         ],

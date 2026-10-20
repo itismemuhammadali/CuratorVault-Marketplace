@@ -323,24 +323,17 @@ class _TransactionHistoryViewState extends State<TransactionHistoryView> {
   }
 
   Widget _transactionCard(_TransactionItem item) {
-    final isSelling = item.type == _TransactionType.selling;
-    
-    // Determine color and label based on transaction type
+    // Determine color based on transaction type
     Color bgColor;
-    String typeLabel;
     
     if (item.title == 'Sale Payment') {
       bgColor = const Color(0xFF0FD36D);
-      typeLabel = 'Sale Payment';
     } else if (item.title == 'Escrow Hold') {
       bgColor = const Color(0xFFFFB900);
-      typeLabel = 'Escrow Hold';
     } else if (item.title == 'Platform Fee' || item.title == 'Transaction Fee' || item.title == 'Withdrawal') {
       bgColor = const Color(0xFFFF6363);
-      typeLabel = item.title;
     } else {
       bgColor = const Color(0xFFFF6363);
-      typeLabel = item.title;
     }
 
     return Container(

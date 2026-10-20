@@ -700,26 +700,3 @@ class _ViewButton extends StatelessWidget {
     );
   }
 }
-
-class _ListHeartButton extends StatelessWidget {
-  final bool isFavorite;
-  final VoidCallback? onTap;
-
-  const _ListHeartButton({required this.isFavorite, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkResponse(
-      onTap: onTap,
-      radius: 20.r,
-      child: Padding(
-        padding: EdgeInsets.all(6.w),
-        child: Icon(
-          isFavorite ? Icons.favorite : Icons.favorite_border,
-          size: 18.sp,
-          color: AppColors.redButton,
-        ),
-      ),
-    );
-  }
-}

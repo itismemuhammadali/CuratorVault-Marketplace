@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vintage_app/core/components/includes/app_text_field.dart';
+import 'package:vintage_app/core/services/auth_service.dart';
 import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/buttons/custom_button.dart';
 import 'package:vintage_app/core/theme/images.dart';
@@ -102,9 +103,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ),
             SizedBox(height: 14.h),
             CustomButton(
-              onTap: () {
+              onTap: () async {
                 final email = _emailController.text.trim();
-                context.push('/checkEmail?email=${Uri.encodeComponent(email)}');
+                if (email.isNotEmpty) {
+                  try {
+                    await AuthService().sendPasswordResetEmail(email);
+                  } catch (e) {
+                    debugPrint('Error sending password reset email: $e');
+                  }
+                }
+                if (context.mounted) {
+                  context.push('/checkEmail?email=${Uri.encodeComponent(email)}');
+                }
               },
               height: 52.h,
               borderRadius: 10.r,

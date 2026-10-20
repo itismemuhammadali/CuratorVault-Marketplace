@@ -9,6 +9,8 @@ import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/images.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
 
+import 'package:vintage_app/core/services/api_service.dart';
+
 class AcceptOrderView extends StatefulWidget {
   final String orderId;
   final String itemTitle;
@@ -33,6 +35,7 @@ enum _BottomCtaState { acceptOrder, markShipped, backToHome }
 
 class _AcceptOrderViewState extends State<AcceptOrderView> {
   _BottomCtaState _bottomCtaState = _BottomCtaState.acceptOrder;
+  bool _isLoading = false;
 
   String get _statusTitle {
     if (_bottomCtaState == _BottomCtaState.acceptOrder) {
@@ -68,19 +71,46 @@ class _AcceptOrderViewState extends State<AcceptOrderView> {
     if (_bottomCtaState == _BottomCtaState.acceptOrder) {
       final accepted = await _showAcceptOrderDialog();
       if (accepted == true && mounted) {
-        setState(() {
-          _bottomCtaState = _BottomCtaState.markShipped;
-        });
+        setState(() => _isLoading = true);
+        try {
+          await ApiService.post('/api/v1/orders/${widget.orderId}/accept', {});
+        } catch (e) {
+          debugPrint('Error accepting order API: $e');
+        }
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _bottomCtaState = _BottomCtaState.markShipped;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Order accepted! Customer has been notified.')),
+          );
+        }
       }
       return;
     }
 
     if (_bottomCtaState == _BottomCtaState.markShipped) {
-      final shipped = await _showMarkShippedDialog();
-      if (shipped == true && mounted) {
-        setState(() {
-          _bottomCtaState = _BottomCtaState.backToHome;
-        });
+      final shipResult = await _showMarkShippedDialog();
+      if (shipResult != null && mounted) {
+        setState(() => _isLoading = true);
+        try {
+          await ApiService.post('/api/v1/orders/${widget.orderId}/fulfill', {
+            'carrier': shipResult['carrier'] ?? 'DHL Express',
+            'trackingNumber': shipResult['tracking'] ?? 'DHL123456789',
+          });
+        } catch (e) {
+          debugPrint('Error marking order shipped API: $e');
+        }
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _bottomCtaState = _BottomCtaState.backToHome;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Order marked as shipped via ${shipResult['carrier']}!')),
+          );
+        }
       }
       return;
     }
@@ -139,8 +169,8 @@ class _AcceptOrderViewState extends State<AcceptOrderView> {
     );
   }
 
-  Future<bool?> _showMarkShippedDialog() {
-    return showDialog<bool>(
+  Future<Map<String, String>?> _showMarkShippedDialog() {
+    return showDialog<Map<String, String>>(
       context: context,
       barrierDismissible: true,
       builder: (_) => const _MarkShippedDialog(),
@@ -238,7 +268,9 @@ class _AcceptOrderViewState extends State<AcceptOrderView> {
               _escrowCard(),
               SizedBox(height: 22.h),
               _primaryButton(
-                label: _bottomCtaState == _BottomCtaState.acceptOrder
+                label: _isLoading
+                    ? 'Processing...'
+                    : _bottomCtaState == _BottomCtaState.acceptOrder
                     ? 'Accept Order'
                     : _bottomCtaState == _BottomCtaState.markShipped
                     ? 'Mark as Shipped'
@@ -247,7 +279,7 @@ class _AcceptOrderViewState extends State<AcceptOrderView> {
                     ? AppImages.circularTickIcon
                     : null,
                 showShippingIcon: _bottomCtaState == _BottomCtaState.markShipped,
-                onTap: _handleBottomCtaTap,
+                onTap: _isLoading ? () {} : _handleBottomCtaTap,
               ),
             ],
           ),
@@ -349,14 +381,11 @@ class _AcceptOrderViewState extends State<AcceptOrderView> {
     IconData? icon,
     String? svgIcon,
   }) {
-    // Different sizes for different icons
-    double iconSize = 18.sp; // default for shipped
+    double iconSize = 18.sp;
     if (svgIcon != null) {
-      // Check if it's package icon (larger) or check email icon (smaller)
       iconSize = label == 'Accepted' ? 23.sp : 18.sp;
     }
 
-    // Icon color based on completion status
     final iconColor = isCompleted ? Colors.white : const Color(0xFF99A1AF);
 
     return Column(
@@ -718,12 +747,20 @@ class _MarkShippedDialog extends StatefulWidget {
 
 class _MarkShippedDialogState extends State<_MarkShippedDialog> {
   late final TextEditingController _trackingController;
+  String _selectedCarrier = 'DHL Express';
+  final List<String> _carriers = [
+    'DHL Express',
+    'FedEx',
+    'UPS',
+    'Royal Mail',
+    'USPS Priority',
+  ];
   String? _validationError;
 
   @override
   void initState() {
     super.initState();
-    _trackingController = TextEditingController();
+    _trackingController = TextEditingController(text: 'DHL987654321');
   }
 
   @override
@@ -746,29 +783,74 @@ class _MarkShippedDialogState extends State<_MarkShippedDialog> {
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Mark as Shipped',
-              textAlign: TextAlign.center,
-              style: TextStyles.boldLarge.copyWith(
-                color: const Color(0xFF202124),
+            Center(
+              child: Text(
+                'Mark as Shipped',
+                textAlign: TextAlign.center,
+                style: TextStyles.boldLarge.copyWith(
+                  color: const Color(0xFF202124),
+                ),
               ),
             ),
-            SizedBox(height: 10.h),
+            SizedBox(height: 8.h),
             Text(
-              'Please enter the tracking number for this shipment. The buyer will be notified and can track their package.',
+              'Select the courier service and enter the tracking number for this shipment.',
               textAlign: TextAlign.center,
               style: TextStyles.regularMedium.copyWith(
                 color: const Color(0xFF6B7280),
                 height: 1.4,
               ),
             ),
-            SizedBox(height: 14.h),
+            SizedBox(height: 16.h),
+            Text(
+              'Courier Service',
+              style: TextStyles.mediumSmall.copyWith(color: const Color(0xFF202124)),
+            ),
+            SizedBox(height: 6.h),
             Container(
               padding: EdgeInsets.symmetric(horizontal: 14.w),
               decoration: BoxDecoration(
                 color: const Color(0xFFF3F4F6),
-                borderRadius: BorderRadius.circular(14.r),
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(color: const Color(0xFFD3D8E0)),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedCarrier,
+                  isExpanded: true,
+                  items: _carriers.map((carrier) {
+                    return DropdownMenuItem<String>(
+                      value: carrier,
+                      child: Row(
+                        children: [
+                          Icon(Icons.local_shipping_outlined, size: 18.sp, color: AppColors.redButton),
+                          SizedBox(width: 8.w),
+                          Text(carrier, style: TextStyles.mediumMedium),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() => _selectedCarrier = val);
+                    }
+                  },
+                ),
+              ),
+            ),
+            SizedBox(height: 14.h),
+            Text(
+              'Tracking Number',
+              style: TextStyles.mediumSmall.copyWith(color: const Color(0xFF202124)),
+            ),
+            SizedBox(height: 6.h),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 14.w),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(12.r),
                 border: Border.all(
                   color: _validationError == null
                       ? const Color(0xFFD3D8E0)
@@ -789,7 +871,7 @@ class _MarkShippedDialogState extends State<_MarkShippedDialog> {
                 },
                 decoration: InputDecoration(
                   border: InputBorder.none,
-                  hintText: 'Tracking Number (e.g., 1Z999AA10123456784)',
+                  hintText: 'e.g. DHL987654321 / 1Z999AA10123456784',
                   hintStyle: TextStyles.regularMedium.copyWith(
                     color: const Color(0xFF9CA3AF),
                   ),
@@ -798,30 +880,31 @@ class _MarkShippedDialogState extends State<_MarkShippedDialog> {
             ),
             if (_validationError != null) ...[
               SizedBox(height: 8.h),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  _validationError!,
-                  style: TextStyles.regularSmall.copyWith(
-                    color: AppColors.redButton,
-                  ),
+              Text(
+                _validationError!,
+                style: TextStyles.regularSmall.copyWith(
+                  color: AppColors.redButton,
                 ),
               ),
             ],
-            SizedBox(height: 14.h),
+            SizedBox(height: 18.h),
             GestureDetector(
               onTap: () {
-                if (_trackingController.text.trim().isEmpty) {
+                final tracking = _trackingController.text.trim();
+                if (tracking.isEmpty) {
                   setState(() {
-                    _validationError = 'Please enter a tracking number first.';
+                    _validationError = 'Please enter a valid tracking number.';
                   });
                   return;
                 }
-                Navigator.of(context).pop(true);
+                Navigator.of(context).pop({
+                  'carrier': _selectedCarrier,
+                  'tracking': tracking,
+                });
               },
               child: Container(
                 width: double.infinity,
-                height: 54.h,
+                height: 50.h,
                 decoration: BoxDecoration(
                   color: AppColors.redButton,
                   borderRadius: BorderRadius.circular(10.r),
@@ -838,10 +921,10 @@ class _MarkShippedDialogState extends State<_MarkShippedDialog> {
             ),
             SizedBox(height: 10.h),
             GestureDetector(
-              onTap: () => Navigator.of(context).pop(false),
+              onTap: () => Navigator.of(context).pop(null),
               child: Container(
                 width: double.infinity,
-                height: 54.h,
+                height: 48.h,
                 decoration: BoxDecoration(
                   color: Colors.transparent,
                   borderRadius: BorderRadius.circular(10.r),

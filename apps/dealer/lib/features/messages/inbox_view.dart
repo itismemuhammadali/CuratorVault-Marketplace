@@ -3,8 +3,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vintage_app/core/components/global_header/header_config.dart';
 import 'package:vintage_app/core/components/global_header/header_controller_provider.dart';
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
+import 'package:vintage_app/core/services/items_service.dart';
 import 'package:vintage_app/core/theme/app_colors.dart';
-import 'package:vintage_app/core/theme/images.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
 
 class InboxView extends StatefulWidget {
@@ -17,59 +18,28 @@ class InboxView extends StatefulWidget {
 class _InboxViewState extends State<InboxView> {
   final TextEditingController _searchController = TextEditingController();
   bool _headerSet = false;
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _conversations = [];
 
-  final List<_InboxConversation> _conversations = [
-    _InboxConversation(
-      name: 'John Davis',
-      preview: 'Yes, it comes with a certificate of authenticity',
-      time: '10:36 AM',
-      unreadCount: 0,
-      itemImage: AppImages.productOne,
-      avatarImage: AppImages.userImg,
-      itemTitle: 'Victorian Mahogany Chair',
-      avatarRingColor: Color(0xFF7C3AED),
-    ),
-    _InboxConversation(
-      name: 'Sarah Martinez',
-      preview: 'When can you ship this?',
-      time: 'Yesterday',
-      unreadCount: 2,
-      itemImage: AppImages.productTwo,
-      avatarImage: AppImages.userImg,
-      itemTitle: 'Antique Oak Cabinet',
-      avatarRingColor: Color(0xFFD1D5DB),
-    ),
-    _InboxConversation(
-      name: 'Michael Chen',
-      preview: 'Thank you! Looking forward to receiving it.',
-      time: '2 days ago',
-      unreadCount: 0,
-      itemImage: AppImages.productThree,
-      avatarImage: AppImages.userImg,
-      itemTitle: 'Porcelain Vase Collection',
-      avatarRingColor: Color(0xFFD1D5DB),
-    ),
-    _InboxConversation(
-      name: 'Emma Wilson',
-      preview: 'Is this still available?',
-      time: '3 days ago',
-      unreadCount: 1,
-      itemImage: AppImages.productFive,
-      avatarImage: AppImages.userImg,
-      itemTitle: 'Vintage Pocket Watch',
-      avatarRingColor: Color(0xFFD1D5DB),
-    ),
-    _InboxConversation(
-      name: 'Robert Taylor',
-      preview: "Perfect! I'll take it.",
-      time: '1 week ago',
-      unreadCount: 0,
-      itemImage: AppImages.productFour,
-      avatarImage: AppImages.userImg,
-      itemTitle: 'Art Deco Mirror',
-      avatarRingColor: Color(0xFFD1D5DB),
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadChats();
+  }
+
+  Future<void> _loadChats() async {
+    setState(() {
+      _isLoading = true;
+    });
+    final chats = await ItemsService.getChats();
+    if (mounted) {
+      setState(() {
+        _conversations = chats;
+        _isLoading = false;
+      });
+      _updateHeader();
+    }
+  }
 
   @override
   void dispose() {
@@ -80,12 +50,12 @@ class _InboxViewState extends State<InboxView> {
   void _updateHeader() {
     final unreadCount = _conversations.fold<int>(
       0,
-      (total, item) => total + item.unreadCount,
+      (total, item) => total + ((item['unreadCount'] ?? 0) as int),
     );
 
     HeaderControllerProvider.of(context).value = HeaderConfig(
       title: Text(
-        'Messages',
+        'Dealer Inbox',
         style: TextStyles.boldLarge.copyWith(
           color: AppColors.bodyBg,
           fontSize: 24.sp,
@@ -123,176 +93,147 @@ class _InboxViewState extends State<InboxView> {
   Widget build(BuildContext context) {
     return Container(
       color: const Color(0xFFF5F5F5),
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 16.h),
-        child: Column(
-          children: [
-            ..._conversations.map(
-              (conversation) => Padding(
-                padding: EdgeInsets.only(bottom: 10.h),
-                child: _InboxTile(
-                  item: conversation,
-                  onTap: () => context.push('/single_message'),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InboxConversation {
-  final String name;
-  final String preview;
-  final String time;
-  final int unreadCount;
-  final String itemImage;
-  final String avatarImage;
-  final String itemTitle;
-  final Color avatarRingColor;
-
-  const _InboxConversation({
-    required this.name,
-    required this.preview,
-    required this.time,
-    required this.unreadCount,
-    required this.itemImage,
-    required this.avatarImage,
-    required this.itemTitle,
-    required this.avatarRingColor,
-  });
-}
-
-class _InboxTile extends StatelessWidget {
-  final _InboxConversation item;
-  final VoidCallback onTap;
-
-  const _InboxTile({required this.item, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 14.h),
-        decoration: BoxDecoration(
-          color: AppColors.bodyBg,
-          borderRadius: BorderRadius.circular(22.r),
-          border: Border.all(color: const Color(0xFFE3E7ED), width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.shadowColor.withValues(alpha: 0.06),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 58.w,
-              height: 58.w,
-              padding: EdgeInsets.all(2.w),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: item.avatarRingColor, width: 2.5),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(100.r),
-                child: Image.asset(item.avatarImage, fit: BoxFit.cover),
-              ),
-            ),
-            SizedBox(width: 12.w),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      child: _isLoading
+          ? const Center(child: JumpingDots(color: AppColors.redButton))
+          : _conversations.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Expanded(
-                        child: Text(
-                          item.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyles.boldMedium.copyWith(
-                            color: AppColors.gradientColor1,
-                            fontSize: 18.sp,
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 10.w),
+                      Icon(Icons.mark_email_unread_outlined, size: 54.sp, color: Colors.grey),
+                      SizedBox(height: 12.h),
                       Text(
-                        item.time,
-                        style: TextStyles.regularSmall.copyWith(
-                          color: const Color(0xFF64748B),
-                        ),
+                        'No dealer inquiries or chat threads yet',
+                        style: TextStyles.mediumSmall.copyWith(color: Colors.grey),
                       ),
                     ],
                   ),
-                  SizedBox(height: 8.h),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10.r),
-                        child: Image.asset(
-                          item.itemImage,
-                          width: 32.w,
-                          height: 24.w,
-                          fit: BoxFit.cover,
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadChats,
+                  color: AppColors.redButton,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 16.h),
+                    child: Column(
+                      children: [
+                        ..._conversations.map(
+                          (chat) {
+                            final chatId = chat['id'] ?? 'chat_1';
+                            final name = chat['customerName'] ?? chat['title'] ?? 'Customer Inquiry';
+                            final lastMsg = chat['lastMessage'] ?? 'No messages yet';
+                            final unreadCount = (chat['unreadCount'] ?? 0) as int;
+
+                            return Padding(
+                              padding: EdgeInsets.only(bottom: 10.h),
+                              child: GestureDetector(
+                                onTap: () => context.push('/single_message', extra: {
+                                  'chatId': chatId,
+                                  'title': name,
+                                }),
+                                child: Container(
+                                  padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 14.h),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.bodyBg,
+                                    borderRadius: BorderRadius.circular(22.r),
+                                    border: Border.all(color: const Color(0xFFE3E7ED), width: 1),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.shadowColor.withValues(alpha: 0.06),
+                                        blurRadius: 14,
+                                        offset: const Offset(0, 6),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        width: 50.w,
+                                        height: 50.w,
+                                        decoration: const BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: Color(0xFFE5E7EB),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            name.isNotEmpty ? name.substring(0, (name.length >= 2 ? 2 : 1)).toUpperCase() : 'CU',
+                                            style: TextStyles.boldMedium.copyWith(color: AppColors.darkText),
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(width: 12.w),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    name,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyles.boldMedium.copyWith(
+                                                      color: AppColors.gradientColor1,
+                                                      fontSize: 16.sp,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Text(
+                                                  'Active',
+                                                  style: TextStyles.regularSmall.copyWith(
+                                                    color: const Color(0xFF64748B),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            SizedBox(height: 6.h),
+                                            Text(
+                                              lastMsg,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyles.regularMedium.copyWith(
+                                                color: AppColors.lightText.withValues(alpha: 0.68),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (unreadCount > 0) ...[
+                                        SizedBox(width: 10.w),
+                                        Container(
+                                          height: 22.w,
+                                          width: 22.w,
+                                          decoration: const BoxDecoration(
+                                            color: AppColors.redButton,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              '$unreadCount',
+                                              style: TextStyles.semiBoldExtraSmall.copyWith(
+                                                color: AppColors.bodyBg,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      ),
-                      SizedBox(width: 8.w),
-                      Expanded(
-                        child: Text(
-                          item.itemTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyles.regularSmall.copyWith(
-                            color: const Color(0xFF4B5563),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 8.h),
-                  Text(
-                    item.preview,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyles.regularMedium.copyWith(
-                      color: AppColors.lightText.withValues(alpha: 0.68),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            if (item.unreadCount > 0) ...[
-              SizedBox(width: 10.w),
-              Container(
-                height: 24.w,
-                width: 24.w,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF7C3AED),
-                  shape: BoxShape.circle,
                 ),
-                child: Center(
-                  child: Text(
-                    '${item.unreadCount}',
-                    style: TextStyles.semiBoldExtraSmall.copyWith(
-                      color: AppColors.bodyBg,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 }
+
+
+

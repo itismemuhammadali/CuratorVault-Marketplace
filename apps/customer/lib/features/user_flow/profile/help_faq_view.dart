@@ -192,7 +192,7 @@ class _HelpFaqViewState extends State<HelpFaqView> {
               ),
               SizedBox(height: 20.h),
               // FAQ Sections
-              ..._sections.map((section) => _faqSection(section)).toList(),
+              ..._sections.map((section) => _faqSection(section)),
               SizedBox(height: 20.h),
               // Version
               Center(
@@ -333,7 +333,7 @@ class _HelpFaqViewState extends State<HelpFaqView> {
             ),
           ),
           SizedBox(height: 12.h),
-          ...section.items.map((item) => _faqItem(item)).toList(),
+          ...section.items.map((item) => _faqItem(item)),
         ],
       ),
     );
@@ -360,11 +360,11 @@ class _HelpFaqViewState extends State<HelpFaqView> {
           childrenPadding: EdgeInsets.zero,
           collapsedShape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12.r),
-            side: BorderSide(color: Colors.transparent),
+            side: const BorderSide(color: Colors.transparent),
           ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12.r),
-            side: BorderSide(color: Colors.transparent),
+            side: const BorderSide(color: Colors.transparent),
           ),
           onExpansionChanged: (value) {
             setState(() {
@@ -410,12 +410,11 @@ class _FaqItem {
   _FaqItem({
     required this.question,
     required this.answer,
-    this.isExpanded = false,
   });
 
   final String question;
   final String answer;
-  bool isExpanded;
+  bool isExpanded = false;
 }
 
 class _FaqSection {

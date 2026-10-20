@@ -50,6 +50,9 @@ dependencies:
   cloud_firestore: ^5.6.5
   firebase_storage: ^12.4.4
 
+  # Networking
+  http: ^1.2.0
+
 
 dependency_overrides:
   font_awesome_flutter: 11.0.0

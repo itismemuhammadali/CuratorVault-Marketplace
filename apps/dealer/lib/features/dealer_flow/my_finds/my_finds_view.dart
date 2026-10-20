@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:vintage_app/core/components/global_header/header_config.dart';
 import 'package:vintage_app/core/components/global_layout/main_layout.dart';
 import 'package:vintage_app/core/components/includes/horizontal_chip_bar.dart';
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
+import 'package:vintage_app/core/services/items_service.dart';
 import 'package:vintage_app/features/dealer_flow/my_finds/widgets/delete_item_dialog.dart';
 import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/images.dart';
@@ -18,52 +20,41 @@ class MyFindsView extends StatefulWidget {
 
 class _MyFindsViewState extends State<MyFindsView> {
   int _selectedFilterIndex = 0;
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _items = [];
 
   final List<String> filters = const [
-    'All (4)',
-    'Live (2)',
-    'Sold (1)',
-    'Draft (1)',
+    'All Items',
+    'Live',
+    'Sold',
+    'Draft',
   ];
 
-  final List<_InventoryItem> _items = const [
-    _InventoryItem(
-      id: '1',
-      title: 'Victorian Mahogany Chair',
-      price: '\$850',
-      views: '124',
-      status: 'Live',
-      statusColor: Color(0xFF19D36B),
-      image: AppImages.productOne,
-    ),
-    _InventoryItem(
-      id: '2',
-      title: 'Antique Oak Cabinet',
-      price: '\$1,200',
-      views: '89',
-      status: 'Live',
-      statusColor: Color(0xFF19D36B),
-      image: AppImages.productFour,
-    ),
-    _InventoryItem(
-      id: '3',
-      title: 'Porcelain Vase Collection',
-      price: '\$650',
-      views: '156',
-      status: 'Sold',
-      statusColor: Color(0xFF1F2937),
-      image: AppImages.productThree,
-    ),
-    _InventoryItem(
-      id: '4',
-      title: 'Vintage Pocket Watch',
-      price: '\$450',
-      views: '0',
-      status: 'Draft',
-      statusColor: Color(0xFFB56C3A),
-      image: AppImages.productFive,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadItems();
+  }
+
+  Future<void> _loadItems() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    final allItems = await ItemsService.getMyFinds();
+    if (mounted) {
+      setState(() {
+        _items = allItems;
+        _isLoading = false;
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> get _filteredItems {
+    if (_selectedFilterIndex == 0) return _items;
+    final filterStatus = filters[_selectedFilterIndex].toLowerCase();
+    return _items.where((i) => (i['status'] ?? '').toString().toLowerCase() == filterStatus).toList();
+  }
 
   HeaderConfig _buildHeader() {
     return HeaderConfig(
@@ -100,50 +91,55 @@ class _MyFindsViewState extends State<MyFindsView> {
       headerConfig: _buildHeader(),
       body: Container(
         color: AppColors.subPageBg,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 18.h),
-          child: Column(
-            children: [
-              for (final item in _items) ...[
-                _InventoryCard(
-                  item: item,
-                  onEdit: () => context.push('/dealer/my-finds/edit/${item.id}'),
-                  onDelete: () =>
-                      showDeleteItemDialog(context, itemTitle: item.title),
-                  onTap: () => context.push('/dealer/my-finds/item/${item.id}'),
-                ),
-                SizedBox(height: 12.h),
-              ],
-            ],
-          ),
-        ),
+        child: _isLoading
+            ? const Center(
+                child: JumpingDots(color: AppColors.redButton),
+              )
+            : RefreshIndicator(
+                onRefresh: _loadItems,
+                color: AppColors.redButton,
+                child: _filteredItems.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.inventory_2_outlined, size: 54.sp, color: Colors.grey),
+                            SizedBox(height: 12.h),
+                            Text(
+                              'No inventory items found',
+                              style: TextStyles.mediumSmall.copyWith(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 18.h),
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: Column(
+                          children: [
+                            for (final item in _filteredItems) ...[
+                              _InventoryCard(
+                                item: item,
+                                onEdit: () => context.push('/dealer/my-finds/edit/${item['id']}'),
+                                onDelete: () => showDeleteItemDialog(
+                                  context,
+                                  itemTitle: item['title'] ?? 'Item',
+                                ),
+                                onTap: () => context.push('/dealer/my-finds/item/${item['id']}'),
+                              ),
+                              SizedBox(height: 12.h),
+                            ],
+                          ],
+                        ),
+                      ),
+              ),
       ),
     );
   }
 }
 
-class _InventoryItem {
-  final String id;
-  final String title;
-  final String price;
-  final String views;
-  final String status;
-  final Color statusColor;
-  final String image;
-
-  const _InventoryItem({
-    required this.id,
-    required this.title,
-    required this.price,
-    required this.views,
-    required this.status,
-    required this.statusColor,
-    required this.image,
-  });
-}
-
 class _InventoryCard extends StatelessWidget {
-  final _InventoryItem item;
+  final Map<String, dynamic> item;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onTap;
@@ -157,6 +153,19 @@ class _InventoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final title = item['title'] ?? 'Vintage Item';
+    final price = item['price'] ?? '\$1,200';
+    final views = (item['views'] ?? 0).toString();
+    final status = item['status'] ?? 'Live';
+    final imgPath = item['image'] ?? item['imageUrl'] ?? AppImages.productOne;
+
+    Color statusColor = const Color(0xFF19D36B);
+    if (status.toString().toLowerCase() == 'sold') {
+      statusColor = const Color(0xFF1F2937);
+    } else if (status.toString().toLowerCase() == 'draft') {
+      statusColor = const Color(0xFFB56C3A);
+    }
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -187,12 +196,31 @@ class _InventoryCard extends StatelessWidget {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(14.r),
-                    child: Image.asset(
-                      item.image,
-                      width: 86.w,
-                      height: 86.w,
-                      fit: BoxFit.cover,
-                    ),
+                    child: imgPath.toString().startsWith('http')
+                        ? Image.network(
+                            imgPath,
+                            width: 86.w,
+                            height: 86.w,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Image.asset(
+                              AppImages.productOne,
+                              width: 86.w,
+                              height: 86.w,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : Image.asset(
+                            imgPath.toString().contains('assets/') ? imgPath : AppImages.productOne,
+                            width: 86.w,
+                            height: 86.w,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Image.asset(
+                              AppImages.productOne,
+                              width: 86.w,
+                              height: 86.w,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
                   ),
                   SizedBox(width: 12.w),
                   Expanded(
@@ -200,7 +228,7 @@ class _InventoryCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          item.title,
+                          title,
                           style: TextStyles.mediumMedium.copyWith(
                             color: AppColors.lightText,
                             fontSize: 16.sp,
@@ -208,7 +236,7 @@ class _InventoryCard extends StatelessWidget {
                         ),
                         SizedBox(height: 8.h),
                         Text(
-                          item.price,
+                          price,
                           style: TextStyles.mediumMedium.copyWith(
                             color: AppColors.redButton,
                             fontSize: 16.sp,
@@ -236,7 +264,7 @@ class _InventoryCard extends StatelessWidget {
                                   ),
                                   SizedBox(width: 4.w),
                                   Text(
-                                    item.views,
+                                    views,
                                     style: TextStyles.mediumSmall.copyWith(
                                       color: const Color(0xFF2F80FF),
                                     ),
@@ -248,16 +276,16 @@ class _InventoryCard extends StatelessWidget {
                             Container(
                               padding: EdgeInsets.symmetric(
                                 horizontal: 10.w,
-                                vertical: 5.h,
+                                vertical: 6.h,
                               ),
                               decoration: BoxDecoration(
-                                color: item.statusColor,
+                                color: statusColor.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(999.r),
                               ),
                               child: Text(
-                                item.status,
+                                status,
                                 style: TextStyles.mediumSmall.copyWith(
-                                  color: Colors.white,
+                                  color: statusColor,
                                 ),
                               ),
                             ),
@@ -271,75 +299,29 @@ class _InventoryCard extends StatelessWidget {
             ),
           ),
           Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: [Color(0xFFF9FAFB), Color(0xFFEFF6FF)],
-              ),
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(18.r),
-                bottomRight: Radius.circular(18.r),
-              ),
-            ),
+            height: 1,
+            color: const Color(0xFFE2E6EE),
+          ),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: onEdit,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 14.h),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Image.asset(
-                            AppImages.editBoxedIcon,
-                            width: 16.w,
-                            height: 16.w,
-                            fit: BoxFit.contain,
-                          ),
-                          SizedBox(width: 6.w),
-                          Text(
-                            'Edit',
-                            style: TextStyles.mediumMedium.copyWith(
-                              color: const Color(0xFF2F80FF),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                TextButton.icon(
+                  onPressed: onEdit,
+                  icon: Icon(Icons.edit_outlined, size: 16.sp, color: AppColors.lightText),
+                  label: Text(
+                    'Edit',
+                    style: TextStyles.mediumSmall.copyWith(color: AppColors.lightText),
                   ),
                 ),
-                Container(
-                  width: 1,
-                  height: 22.h,
-                  color: const Color(0xFFD4DCE9),
-                ),
-                Expanded(
-                  child: InkWell(
-                    onTap: onDelete,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 14.h),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Image.asset(
-                            AppImages.trashOutlinedIcon,
-                            width: 16.w,
-                            height: 16.w,
-                            fit: BoxFit.contain,
-                          ),
-                          SizedBox(width: 6.w),
-                          Text(
-                            'Delete',
-                            style: TextStyles.mediumMedium.copyWith(
-                              color: AppColors.redButton,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                SizedBox(width: 8.w),
+                TextButton.icon(
+                  onPressed: onDelete,
+                  icon: Icon(Icons.delete_outline, size: 16.sp, color: AppColors.redButton),
+                  label: Text(
+                    'Delete',
+                    style: TextStyles.mediumSmall.copyWith(color: AppColors.redButton),
                   ),
                 ),
               ],

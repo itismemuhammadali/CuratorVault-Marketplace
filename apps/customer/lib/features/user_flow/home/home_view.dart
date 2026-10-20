@@ -8,6 +8,12 @@ import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/images.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
 
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:vintage_app/core/services/api_service.dart';
+
+import 'package:vintage_app/core/services/items_service.dart';
+
 import '../../../core/components/global_header/header_config.dart';
 import '../../../core/components/global_header/header_controller_provider.dart';
 
@@ -21,31 +27,122 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController controller = TextEditingController();
   bool _headerSet = false;
+  String _customerName = 'Lori Porter';
+  Map<String, dynamic>? _upcomingEvent;
+  List<Map<String, dynamic>> _recentScans = [];
 
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+    _loadUpcomingEvent();
+    _loadRecentScans();
+  }
 
-  final _recentScans = const [
-    (
-      title: 'Victorian Pocket Watch',
-      dateTime: 'Oct 14, 2025 2:30 pm',
-      price: '\$1,200 - \$1,800',
-      badge: AppItemCardBadge.hot,
-      image: AppImages.productFive,
-    ),
-    (
-      title: 'Digital Fitness Tracker',
-      dateTime: 'Oct 11, 2025 9:07 pm',
-      price: '\$150 - \$250',
-      badge: AppItemCardBadge.trendy,
-      image: AppImages.productSix,
-    ),
-    (
-      title: 'Modern Smartwatch',
-      dateTime: 'Sep 28, 2025 3:40 am',
-      price: '\$300 - \$700',
-      badge: AppItemCardBadge.cool,
-      image: AppImages.productSeven,
-    ),
-  ];
+  Future<void> _loadRecentScans() async {
+    final finds = await ItemsService.getMyFinds();
+    if (mounted) {
+      setState(() {
+        _recentScans = finds.take(4).toList();
+      });
+    }
+  }
+
+  Future<void> _loadUpcomingEvent() async {
+    try {
+      final res = await ApiService.get('/api/v1/events');
+      if (res is Map &&
+          res['events'] is List &&
+          (res['events'] as List).isNotEmpty) {
+        final eventsList = List<Map<String, dynamic>>.from(res['events']);
+        final event = eventsList.firstWhere(
+          (e) => e['status'] == 'Upcoming' || e['status'] == 'Ongoing',
+          orElse: () => eventsList.first,
+        );
+        if (mounted) {
+          setState(() {
+            _upcomingEvent = event;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading upcoming event: $e');
+    }
+  }
+
+  Future<void> _loadUserProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      if (user.displayName != null && user.displayName!.isNotEmpty) {
+        if (mounted) {
+          setState(() => _customerName = user.displayName!);
+          _updateHeader();
+        }
+      }
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('customers')
+            .doc(user.uid)
+            .get();
+        if (doc.exists && doc.data() != null) {
+          final data = doc.data()!;
+          final name = (data['name'] ?? data['firstName'] ?? '').toString();
+          if (name.isNotEmpty && mounted) {
+            setState(() => _customerName = name);
+            _updateHeader();
+          }
+        }
+      } catch (e) {
+        debugPrint('Error loading customer user profile: $e');
+      }
+    }
+  }
+
+  void _updateHeader() {
+    if (!mounted) return;
+    HeaderControllerProvider.of(context).value = HeaderConfig(
+      title: Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _customerName,
+              style: TextStyles.semiBoldLarge.copyWith(
+                color: AppColors.bodyBg,
+              ),
+            ),
+            SizedBox(height: 4.h),
+            Text(
+              'Welcome back,',
+              style: TextStyles.regularMedium.copyWith(
+                color: AppColors.darkText,
+              ),
+            ),
+          ],
+        ),
+      ),
+      trailing: IconBox(
+        icon: AppImages.chatBubbleIcon,
+        height: 40.h,
+        width: 40.w,
+        bgColor: AppColors.messageIconBg,
+        borderRadius: 60.r,
+        iconColor: AppColors.messageIcon,
+        onTap: () {
+          context.push("/user/chat");
+        },
+      ),
+      bottomWidget: AppTextField(
+        controller: controller,
+        hintText: "Search antiques, categories, or experts...",
+        prefix: IconBox(
+          icon: AppImages.magnifineGlassIcon,
+          bgColor: Colors.transparent,
+        ),
+      ),
+      height: 215.h,
+    );
+  }
 
   @override
   void didChangeDependencies() {
@@ -53,52 +150,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (!_headerSet) {
       _headerSet = true;
-
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-
-        HeaderControllerProvider.of(context).value = HeaderConfig(
-          title: Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Lori Porter',
-                  style: TextStyles.semiBoldLarge.copyWith(
-                    color: AppColors.bodyBg,
-                  ),
-                ),
-                SizedBox(height: 4.h),
-                Text(
-                  'Welcome back,',
-                  style: TextStyles.regularMedium.copyWith(
-                    color: AppColors.darkText,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          trailing: IconBox(
-            icon: AppImages.chatBubbleIcon,
-            height: 40.h,
-            width: 40.w,
-            bgColor: AppColors.messageIconBg,
-            borderRadius: 60.r,
-            iconColor: AppColors.messageIcon,
-            onTap: (){
-              context.push("/user/chat");
-            },
-          ),
-          bottomWidget: AppTextField(
-            controller: controller,
-            hintText: "Search antiques, categories, or experts...",
-            prefix: IconBox(
-              icon: AppImages.magnifineGlassIcon,
-              bgColor: Colors.transparent,
-            ),
-          ),
-          height: 215.h,
-        );
+        _updateHeader();
       });
     }
   }
@@ -194,55 +247,74 @@ class _HomeScreenState extends State<HomeScreen> {
               title: 'Upcoming Events',
               actionLabel: 'View All',
               onActionTap: () {
-                context.go("/events");
+                context.push('/events');
               },
             ),
             SizedBox(height: 14.h),
             _UpcomingEventCard(
-              location: 'Downtown Historic District',
-              title: 'AR Treasure Hunt',
-              description:
-                  'Join the hunt — Find hidden antiques in your area\n'
-                  'and earn exclusive badges!',
+              location: _upcomingEvent?['location'] ?? 'Downtown Historic District',
+              title: _upcomingEvent?['title'] ?? 'AR Treasure Hunt',
+              description: _upcomingEvent?['description'] ??
+                  'Join the hunt — Find hidden antiques in your area\nand earn exclusive badges!',
               buttonLabel: 'Register',
               onTap: () {
-                context.push('/events/1');
+                final id = _upcomingEvent?['id'] ?? '1';
+                context.push('/events/$id');
               },
             ),
             SizedBox(height: 22.h),
             _SectionHeader(
-              title: 'Recent Scan',
+              title: 'Recent Scans',
               actionLabel: 'View All',
               onActionTap: () {
                 context.go('/user/my-finds');
               },
             ),
             SizedBox(height: 14.h),
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _recentScans.length,
-              separatorBuilder: (context, index) => SizedBox(height: 12.h),
-              itemBuilder: (context, index) {
-                final item = _recentScans[index];
+            if (_recentScans.isEmpty)
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: 20.h),
+                child: Center(
+                  child: Text(
+                    'No recent scans yet. Use the scan tab to add finds!',
+                    style: TextStyles.regularSmall.copyWith(color: AppColors.greyText),
+                  ),
+                ),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _recentScans.length,
+                separatorBuilder: (context, index) => SizedBox(height: 12.h),
+                itemBuilder: (context, index) {
+                  final item = _recentScans[index];
+                  final id = item['id'] ?? (index + 1).toString();
+                  final title = item['title'] ?? 'Vintage Item';
+                  final price = item['price'] ?? '\$1,200 - \$1,800';
+                  final era = item['era'] ?? 'Antique';
+                  final score = ((item['authenticityScore'] ?? 94) / 100.0).clamp(0.1, 1.0);
+                  final img = item['image'] ?? item['imageUrl'] ?? AppImages.productFive;
 
-                return AppItemCard(
-                  layout: AppItemCardLayout.list,
-                  title: item.title,
-                  dateTimeText: item.dateTime,
-                  priceText: item.price,
-                  badge: item.badge,
-                  confidence: 0.94,
-                  imageAsset: item.image,
-                  isFavorite: false,
-                  onTap: () {},
-                  onFavoriteTap: () {},
-                  onViewTap: () {
-                    context.push('/market/product/${index + 1}');
-                  },
-                );
-              },
-            ),
+                  return AppItemCard(
+                    layout: AppItemCardLayout.list,
+                    title: title,
+                    dateTimeText: era,
+                    priceText: price,
+                    badge: AppItemCardBadge.hot,
+                    confidence: score,
+                    imageAsset: img.toString().contains('assets/') ? img : AppImages.productFive,
+                    isFavorite: false,
+                    onTap: () {
+                      context.push('/market/product/$id');
+                    },
+                    onFavoriteTap: () {},
+                    onViewTap: () {
+                      context.push('/market/product/$id');
+                    },
+                  );
+                },
+              ),
           ],
         ),
       ),

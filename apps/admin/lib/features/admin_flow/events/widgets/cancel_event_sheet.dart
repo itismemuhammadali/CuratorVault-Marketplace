@@ -1,21 +1,78 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
+import 'package:vintage_app/core/services/api_service.dart';
 import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
 
-Future<void> showEventCancelSheet(BuildContext context) {
+Future<void> showEventCancelSheet(
+  BuildContext context, {
+  required String eventId,
+  String? eventTitle,
+  int participantsCount = 0,
+  VoidCallback? onCancelled,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Colors.transparent,
-    builder: (context) => const EventCancelSheet(),
+    builder: (context) => EventCancelSheet(
+      eventId: eventId,
+      eventTitle: eventTitle ?? 'This Event',
+      participantsCount: participantsCount,
+      onCancelled: onCancelled,
+    ),
   );
 }
 
-class EventCancelSheet extends StatelessWidget {
-  const EventCancelSheet({super.key});
+class EventCancelSheet extends StatefulWidget {
+  final String eventId;
+  final String eventTitle;
+  final int participantsCount;
+  final VoidCallback? onCancelled;
+
+  const EventCancelSheet({
+    super.key,
+    required this.eventId,
+    required this.eventTitle,
+    this.participantsCount = 0,
+    this.onCancelled,
+  });
+
+  @override
+  State<EventCancelSheet> createState() => _EventCancelSheetState();
+}
+
+class _EventCancelSheetState extends State<EventCancelSheet> {
+  bool _isCancelling = false;
+
+  Future<void> _cancelEvent() async {
+    setState(() => _isCancelling = true);
+    try {
+      await ApiService.delete('/api/v1/events/${widget.eventId}');
+      if (mounted) {
+        context.pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Event cancelled successfully'),
+            backgroundColor: AppColors.gradientColor1,
+          ),
+        );
+        widget.onCancelled?.call();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isCancelling = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to cancel event: $e'),
+            backgroundColor: AppColors.redButton,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,13 +105,17 @@ class EventCancelSheet extends StatelessWidget {
               children: [
                 _CancelSheetHeader(onClose: () => context.pop()),
                 SizedBox(height: 16.h),
-                const _CancelEventNotice(),
+                _CancelEventNotice(
+                  eventTitle: widget.eventTitle,
+                  participantsCount: widget.participantsCount,
+                ),
                 SizedBox(height: 16.h),
                 const _CancelWarningNotice(),
                 SizedBox(height: 18.h),
                 _SheetPrimaryButton(
-                  label: 'Yes, Cancel Event',
-                  onTap: () => context.pop(),
+                  label: _isCancelling ? 'Cancelling Event...' : 'Yes, Cancel Event',
+                  isLoading: _isCancelling,
+                  onTap: _isCancelling ? () {} : _cancelEvent,
                 ),
                 SizedBox(height: 10.h),
                 _SheetSecondaryButton(
@@ -153,7 +214,13 @@ class _CancelSheetHeader extends StatelessWidget {
 }
 
 class _CancelEventNotice extends StatelessWidget {
-  const _CancelEventNotice();
+  final String eventTitle;
+  final int participantsCount;
+
+  const _CancelEventNotice({
+    required this.eventTitle,
+    required this.participantsCount,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -169,7 +236,7 @@ class _CancelEventNotice extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Downtown AR Treasure Hunt',
+            eventTitle,
             style: TextStyles.boldSmall.copyWith(
               color: AppColors.eventCancelTitle,
               fontSize: 14.sp,
@@ -186,7 +253,7 @@ class _CancelEventNotice extends StatelessWidget {
               children: [
                 const TextSpan(text: 'Canceling this event will notify all '),
                 TextSpan(
-                  text: '145 registered participants',
+                  text: '$participantsCount registered participants',
                   style: TextStyles.boldSmall.copyWith(
                     color: AppColors.eventCancelText,
                     fontSize: 12.sp,
@@ -257,8 +324,13 @@ class _CancelWarningNotice extends StatelessWidget {
 class _SheetPrimaryButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
+  final bool isLoading;
 
-  const _SheetPrimaryButton({required this.label, required this.onTap});
+  const _SheetPrimaryButton({
+    required this.label,
+    required this.onTap,
+    this.isLoading = false,
+  });
 
   @override
   Widget build(BuildContext context) {

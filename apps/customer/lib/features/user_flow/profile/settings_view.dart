@@ -292,7 +292,7 @@ class _SettingsViewState extends State<SettingsView> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: AppColors.redButton,
+            activeThumbColor: AppColors.redButton,
           ),
         ],
       ),

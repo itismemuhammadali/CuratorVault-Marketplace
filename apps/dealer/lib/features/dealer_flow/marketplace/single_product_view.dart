@@ -5,7 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:vintage_app/core/components/global_header/collapsible_image_header.dart';
 import 'package:vintage_app/core/components/global_header/transparent_header.dart';
 import 'package:vintage_app/core/components/icons/icon_box.dart';
-import 'package:vintage_app/core/components/icons/icon_box_transparent.dart';
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
+import 'package:vintage_app/core/services/items_service.dart';
 import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/images.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
@@ -22,13 +23,40 @@ class SingleProductView extends StatefulWidget {
 }
 
 class _SingleProductViewState extends State<SingleProductView> {
-  ScrollController scrollController = ScrollController();
-  final List<String> productImages = [
-    AppImages.productOne,
-    AppImages.productTwo,
-    AppImages.productThree,
-  ];
+  final ScrollController scrollController = ScrollController();
+  bool _isLoading = true;
+  Map<String, dynamic>? _itemData;
+  List<String> productImages = [AppImages.productOne];
   String selectedImage = AppImages.productOne;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProduct();
+  }
+
+  Future<void> _loadProduct() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    final data = await ItemsService.getItemDetail(widget.productId);
+    if (mounted) {
+      setState(() {
+        _itemData = data;
+        if (data != null) {
+          final imgs = data['images'] as List?;
+          if (imgs != null && imgs.isNotEmpty) {
+            productImages = imgs.map((e) => e.toString()).toList();
+          } else if (data['imageUrl'] != null) {
+            productImages = [data['imageUrl'].toString()];
+          }
+          selectedImage = productImages.first;
+        }
+        _isLoading = false;
+      });
+    }
+  }
 
   void _updateImage(String image) {
     setState(() {
@@ -44,44 +72,59 @@ class _SingleProductViewState extends State<SingleProductView> {
         statusBarIconBrightness: Brightness.dark,
       ),
     );
+
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppColors.bodyBg,
+        body: const Center(
+          child: JumpingDots(color: AppColors.redButton),
+        ),
+      );
+    }
+
+    final title = _itemData?['title'] ?? 'Victorian Antique Piece';
+    final category = _itemData?['category'] ?? 'Horology';
+    final era = _itemData?['era'] ?? 'Late Victorian (1880-1900)';
+    final price = (_itemData?['price'] ?? 1450.0).toDouble();
+    final estMax = (_itemData?['estimatedValueMax'] ?? (price * 1.25)).toDouble();
+    final description = _itemData?['description'] ?? 'Expert-inspected antique available for trade acquisition.';
+    final condition = _itemData?['condition'] ?? 'Excellent';
+    final provenance = _itemData?['provenance'] ?? 'Private Estate Collection';
+    final sellerName = _itemData?['sellerName'] ?? 'Heritage Antiques';
+    final sellerRating = (_itemData?['sellerRating'] ?? 4.9).toString();
+    final materials = (_itemData?['materials'] as List?)?.join(', ') ?? 'Original Components & Joinery';
+
     return TransparentHeader(
       backgroundColor: AppColors.bodyBg,
       title: Text(
-        "Victorian Pocket Watch",
+        title,
         style: TextStyles.boldMedium.copyWith(
           color: AppColors.bodyBg,
           fontSize: 20.sp,
         ),
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconBox(
-            icon: AppImages.heartIcon,
-            bgColor: AppColors.bodyBg,
-            iconColor: AppColors.redButton,
-            height: 30.h,
-            width: 30.w,
-            borderRadius: 100.r,
-          ),
-          SizedBox(width: 10.w),
-          IconBox(
-            icon: AppImages.shareIcon,
-            bgColor: AppColors.bodyBg,
-            iconColor: AppColors.redButton,
-            height: 30.h,
-            width: 30.w,
-            borderRadius: 100.r,
-          ),
-        ],
+      trailing: const SizedBox.shrink(),
+      leading: IconBox(
+        icon: AppImages.backIcon,
+        iconColor: const Color(0xFFF8E8C7),
+        bgColor: const Color(0xFFF8E8C7).withValues(alpha: 0.2),
+        height: 40.h,
+        width: 40.w,
+        borderRadius: 100.r,
+        onTap: () {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go('/market');
+          }
+        },
       ),
       body: Column(
         children: [
           CollapsibleImageHeader(
-            image: selectedImage,
+            image: selectedImage.contains('assets/') ? selectedImage : AppImages.productOne,
             maxHeight: 340.h,
             minHeight: 200.h,
-            // controller: scrollController,
           ),
           SizedBox(height: 12.h),
           SizedBox(
@@ -106,7 +149,10 @@ class _SingleProductViewState extends State<SingleProductView> {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(8.r),
-                      child: Image.asset(image, fit: BoxFit.cover),
+                      child: Image.asset(
+                        image.contains('assets/') ? image : AppImages.productOne,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                 );
@@ -123,9 +169,8 @@ class _SingleProductViewState extends State<SingleProductView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Title + tag
                     Text(
-                      'Victorian Pocket Watch',
+                      title,
                       style: TextStyles.semiBoldLarge.copyWith(
                         color: AppColors.lightText,
                       ),
@@ -144,7 +189,7 @@ class _SingleProductViewState extends State<SingleProductView> {
                             borderRadius: BorderRadius.circular(7.r),
                           ),
                           child: Text(
-                            'Horology',
+                            category,
                             style: TextStyles.regularExtraSmall.copyWith(
                               color: AppColors.lightText,
                             ),
@@ -164,7 +209,7 @@ class _SingleProductViewState extends State<SingleProductView> {
                             ),
                           ),
                           child: Text(
-                            'Late Victorian (1880-1900)',
+                            era,
                             style: TextStyles.regularExtraSmall.copyWith(
                               color: AppColors.lightText,
                             ),
@@ -175,12 +220,11 @@ class _SingleProductViewState extends State<SingleProductView> {
 
                     SizedBox(height: 16.h),
 
-                    // Price row
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          '\$1,450',
+                          '\$${price.toInt()}',
                           style: TextStyles.boldLarge.copyWith(
                             fontSize: 30.sp,
                             color: AppColors.redButton,
@@ -188,7 +232,7 @@ class _SingleProductViewState extends State<SingleProductView> {
                         ),
                         SizedBox(width: 8.w),
                         Text(
-                          '\$1,800',
+                          '\$${estMax.toInt()}',
                           style: TextStyles.regularMedium.copyWith(
                             color: AppColors.greyText,
                             decoration: TextDecoration.lineThrough,
@@ -205,7 +249,7 @@ class _SingleProductViewState extends State<SingleProductView> {
                             borderRadius: BorderRadius.circular(4.r),
                           ),
                           child: Text(
-                            '19% OFF',
+                            'AUTHENTICATED',
                             style: TextStyles.boldExtraSmall.copyWith(
                               color: AppColors.bodyBg,
                             ),
@@ -216,7 +260,6 @@ class _SingleProductViewState extends State<SingleProductView> {
 
                     SizedBox(height: 16.h),
 
-                    // Seller section card
                     Container(
                       padding: EdgeInsets.symmetric(
                         horizontal: 16.w,
@@ -228,7 +271,6 @@ class _SingleProductViewState extends State<SingleProductView> {
                       ),
                       child: Row(
                         children: [
-                          // Shield icon circle
                           IconBox(
                             icon: AppImages.sheildIcon,
                             bgColor: AppColors.redButton,
@@ -238,13 +280,12 @@ class _SingleProductViewState extends State<SingleProductView> {
                             borderRadius: 999.r,
                           ),
                           SizedBox(width: 12.w),
-                          // Seller name + rating
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Heritage Antiques',
+                                  sellerName,
                                   style: TextStyles.semiBoldSmall,
                                 ),
                                 SizedBox(height: 4.h),
@@ -257,7 +298,7 @@ class _SingleProductViewState extends State<SingleProductView> {
                                     ),
                                     SizedBox(width: 4.w),
                                     Text(
-                                      '4.8 (342 reviews)',
+                                      '$sellerRating (Verified Dealer)',
                                       style: TextStyles.regularExtraSmall
                                           .copyWith(color: AppColors.lightText),
                                     ),
@@ -267,7 +308,6 @@ class _SingleProductViewState extends State<SingleProductView> {
                             ),
                           ),
                           SizedBox(width: 12.w),
-                          // Outlined Chat button
                           CustomButton(
                             height: 36.h,
                             width: 90.w,
@@ -300,33 +340,10 @@ class _SingleProductViewState extends State<SingleProductView> {
 
                     SizedBox(height: 16.h),
 
-                    // Location
-                    Row(
-                      children: [
-                        IconBoxTransparent(
-                          icon: AppImages.mapMarkerIcon,
-                          color: AppColors.redButton,
-                          size: 20,
-                        ),
-                        SizedBox(width: 6.w),
-                        Expanded(
-                          child: Text(
-                            'London, England',
-                            style: TextStyles.regularSmall.copyWith(
-                              color: AppColors.greyText,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    SizedBox(height: 20.h),
-
-                    // Description
                     Text('Description', style: TextStyles.semiBoldMedium),
                     SizedBox(height: 8.h),
                     Text(
-                      'A beautifully preserved Victorian-era pocket watch featuring intricate hand-engraved patterns on the case and a pristine white enamel dial with Roman numerals. The mechanical movement is in excellent working condition, with all original components intact.',
+                      description,
                       style: TextStyles.regularSmall.copyWith(
                         color: AppColors.greyText,
                       ),
@@ -334,138 +351,38 @@ class _SingleProductViewState extends State<SingleProductView> {
 
                     SizedBox(height: 20.h),
 
-                    // Specifications
                     Text('Specifications', style: TextStyles.semiBoldMedium),
                     SizedBox(height: 12.h),
-                    _specRow('Diameter', '50mm'),
+                    _specRow('Era', era),
                     Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12.h),
+                      padding: EdgeInsets.symmetric(vertical: 8.h),
                       child: HorizontalDivider(width: double.infinity),
                     ),
-                    _specRow('Movement', 'Mechanical, key-wind'),
+                    _specRow('Condition', condition),
                     Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12.h),
+                      padding: EdgeInsets.symmetric(vertical: 8.h),
                       child: HorizontalDivider(width: double.infinity),
                     ),
-                    _specRow('Case Material', 'Gold-plated brass'),
+                    _specRow('Materials', materials),
                     Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12.h),
+                      padding: EdgeInsets.symmetric(vertical: 8.h),
                       child: HorizontalDivider(width: double.infinity),
                     ),
-                    _specRow('Dial', 'White enamel'),
+                    _specRow('Provenance', provenance),
                     Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12.h),
+                      padding: EdgeInsets.symmetric(vertical: 8.h),
                       child: HorizontalDivider(width: double.infinity),
-                    ),
-                    _specRow('Hands', 'Original blued steel'),
-                    Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12.h),
-                      child: HorizontalDivider(width: double.infinity),
-                    ),
-                    _specRow('Provenance', 'Documented'),
-                    Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12.h),
-                      child: HorizontalDivider(width: double.infinity),
-                    ),
-
-                    SizedBox(height: 20.h),
-
-                    // Why buy this
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Why Buy This?', style: TextStyles.semiBoldSmall),
-                        Text(
-                          'View All',
-                          style: TextStyles.regularExtraSmall.copyWith(
-                            color: AppColors.redButton,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 10.h,),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final itemWidth = (constraints.maxWidth - 10.w) / 2;
-
-                        return Wrap(
-                          spacing: 10.w,
-                          runSpacing: 10.h,
-                          children: [
-                            _whyChip(
-                              'Verified by AI authentication',
-                              itemWidth,
-                            ),
-                            _whyChip(
-                              'Certified by expert horologist',
-                              itemWidth,
-                            ),
-                            _whyChip('Original components intact', itemWidth),
-                            _whyChip('Working mechanical movement', itemWidth),
-                            _whyChip('Documented provenance', itemWidth),
-                            _whyChip('30-day money-back guarantee', itemWidth),
-                          ],
-                        );
-                      },
-                    ),
-
-                    SizedBox(height: 20.h),
-
-                    // Condition section
-                    Container(
-                      padding: EdgeInsets.all(12.w),
-                      decoration: BoxDecoration(
-                        color: AppColors.authBackBg,
-                        borderRadius: BorderRadius.circular(12.r),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          IconBoxTransparent(
-                              icon: AppImages.alertIcon,
-                            size: 20,
-                            color: AppColors.redButton  ,
-                          ),
-                          SizedBox(width: 10.w),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Condition',
-                                  style: TextStyles.semiBoldSmall,
-                                ),
-                                SizedBox(height: 4.h),
-                                Text(
-                                  'Authenticated by AI and certified experts. All items come with a certificate of authenticity.',
-                                  style: TextStyles.regularExtraSmall.copyWith(
-                                    color: AppColors.lightText,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(width: 8.w),
-                          Text(
-                            'Excellent',
-                            style: TextStyles.semiBoldExtraSmall.copyWith(
-                              color: AppColors.greenSuccess,
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
 
                     SizedBox(height: 24.h),
 
-                    // Bottom buttons
                     Row(
                       children: [
                         Expanded(
                           child: CustomButton(
                             height: 52.h,
                             borderRadius: 14.r,
-                            btnText: 'Buy Now',
+                            btnText: 'Acquire Lot',
                             btnColor: AppColors.redButton,
                             textColor: Colors.white,
                             onTap: () => context.push('/market/checkout/shipping'),
@@ -476,7 +393,7 @@ class _SingleProductViewState extends State<SingleProductView> {
                           child: CustomButton(
                             height: 52.h,
                             borderRadius: 14.r,
-                            btnText: 'Make Offer',
+                            btnText: 'Dealer Offer',
                             btnColor: AppColors.bodyBg,
                             textColor: AppColors.redButton,
                             onTap: () => context.push(
@@ -515,35 +432,3 @@ Widget _specRow(String label, String value) {
   );
 }
 
-Widget _whyChip(String text, double width) {
-  return SizedBox(
-    width: width,
-    child: Container(
-      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-      decoration: BoxDecoration(
-        color: AppColors.darkText.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(10.r),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          IconBoxTransparent(
-            icon: AppImages.tickIcon,
-            color: AppColors.greenSuccess,
-            size: 20,
-          ),
-          SizedBox(width: 7.w),
-          Expanded(
-            child: Text(
-              text,
-              softWrap: true,
-              style: TextStyles.regularExtraSmall.copyWith(
-                color: AppColors.lightText,
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}

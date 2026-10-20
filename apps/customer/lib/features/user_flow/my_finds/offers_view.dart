@@ -3,6 +3,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vintage_app/core/components/global_header/global_header.dart';
 import 'package:vintage_app/core/components/global_header/header_config.dart';
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
+import 'package:vintage_app/core/services/items_service.dart';
 import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/images.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
@@ -27,6 +29,9 @@ class _OffersViewState extends State<OffersView> {
   late OffersTab _selectedTab;
   bool _showCounterForm = false;
   OverlayEntry? _toastOverlay;
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _receivedOffers = [];
+  List<Map<String, dynamic>> _sentOffers = [];
 
   final TextEditingController _counterAmountController = TextEditingController(
     text: '\$ 0.00',
@@ -38,11 +43,27 @@ class _OffersViewState extends State<OffersView> {
   void initState() {
     super.initState();
     _selectedTab = widget.initialTab;
+    _loadOffers();
 
     if (widget.showSubmittedToast) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        _showSuccessToast('Offer submitted');
+        _showSuccessToast('Offer submitted successfully');
+      });
+    }
+  }
+
+  Future<void> _loadOffers() async {
+    setState(() {
+      _isLoading = true;
+    });
+    final received = await ItemsService.getOffers(type: 'received');
+    final sent = await ItemsService.getOffers(type: 'sent');
+    if (mounted) {
+      setState(() {
+        _receivedOffers = received;
+        _sentOffers = sent;
+        _isLoading = false;
       });
     }
   }
@@ -135,11 +156,17 @@ class _OffersViewState extends State<OffersView> {
   HeaderConfig _headerConfig(BuildContext context) {
     return HeaderConfig(
       title: Text(
-        'Offers',
+        'Offers & Negotiations',
         style: TextStyles.boldLarge.copyWith(color: AppColors.bodyBg),
       ),
       leading: GestureDetector(
-        onTap: () => context.go('/user/market'),
+        onTap: () {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go('/user/market');
+          }
+        },
         child: Container(
           width: 48.w,
           height: 48.w,
@@ -160,7 +187,7 @@ class _OffersViewState extends State<OffersView> {
         children: [
           Expanded(
             child: _OfferTabButton(
-              label: 'Received (2)',
+              label: 'Received (${_receivedOffers.length})',
               isSelected: _selectedTab == OffersTab.received,
               onTap: () {
                 setState(() {
@@ -172,7 +199,7 @@ class _OffersViewState extends State<OffersView> {
           SizedBox(width: 12.w),
           Expanded(
             child: _OfferTabButton(
-              label: 'Send',
+              label: 'Sent (${_sentOffers.length})',
               isSelected: _selectedTab == OffersTab.send,
               onTap: () {
                 setState(() {
@@ -190,51 +217,87 @@ class _OffersViewState extends State<OffersView> {
 
   @override
   Widget build(BuildContext context) {
+    final list = _selectedTab == OffersTab.received ? _receivedOffers : _sentOffers;
+
     return Scaffold(
       backgroundColor: AppColors.bodyBg,
       appBar: SimpleHeader(config: _headerConfig(context)),
       body: SafeArea(
         top: false,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(20.w, 18.h, 20.w, 28.h),
-          child: _selectedTab == OffersTab.received
-              ? _ReceivedOfferCard(
-                  showCounterForm: _showCounterForm,
-                  amountController: _counterAmountController,
-                  messageController: _counterMessageController,
-                  onCounterTap: () {
-                    setState(() {
-                      _showCounterForm = !_showCounterForm;
-                    });
-                  },
-                  onCancelCounter: () {
-                    setState(() {
-                      _showCounterForm = false;
-                    });
-                  },
-                  onSendCounter: () {
-                    setState(() {
-                      _showCounterForm = false;
-                    });
-                    _showSuccessToast('Counter sent');
-                  },
-                  onDecline: () {
-                    _showSuccessToast('Offer declined');
-                  },
-                  onAccept: () {
-                    _showSuccessToast('Offer accepted');
-                  },
-                )
-              : _SentOfferCard(
-                  onWithdraw: () {
-                    _showSuccessToast('Offer withdrawn');
-                  },
-                ),
-        ),
+        child: _isLoading
+            ? const Center(child: JumpingDots(color: AppColors.redButton))
+            : list.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.local_offer_outlined, size: 54.sp, color: Colors.grey),
+                        SizedBox(height: 12.h),
+                        Text(
+                          _selectedTab == OffersTab.received
+                              ? 'No offers received on your listings yet'
+                              : 'You have not submitted any offers yet',
+                          style: TextStyles.mediumSmall.copyWith(color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _loadOffers,
+                    color: AppColors.redButton,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(20.w, 18.h, 20.w, 28.h),
+                      child: _selectedTab == OffersTab.received
+                          ? _ReceivedOfferCard(
+                              showCounterForm: _showCounterForm,
+                              amountController: _counterAmountController,
+                              messageController: _counterMessageController,
+                              onCounterTap: () {
+                                setState(() {
+                                  _showCounterForm = !_showCounterForm;
+                                });
+                              },
+                              onCancelCounter: () {
+                                setState(() {
+                                  _showCounterForm = false;
+                                });
+                              },
+                              onSendCounter: () async {
+                                final text = _counterAmountController.text.replaceAll(RegExp(r'[^0-9.]'), '');
+                                final price = double.tryParse(text) ?? 1350.0;
+                                await ItemsService.respondOffer('offer_1', 'counter', counterPrice: price, message: _counterMessageController.text);
+                                setState(() {
+                                  _showCounterForm = false;
+                                });
+                                _showSuccessToast('Counter offer sent');
+                                _loadOffers();
+                              },
+                              onDecline: () async {
+                                await ItemsService.respondOffer('offer_1', 'decline');
+                                _showSuccessToast('Offer declined');
+                                _loadOffers();
+                              },
+                              onAccept: () async {
+                                await ItemsService.respondOffer('offer_1', 'accept');
+                                _showSuccessToast('Offer accepted! Order ready for checkout.');
+                                _loadOffers();
+                              },
+                            )
+                          : _SentOfferCard(
+                              onWithdraw: () async {
+                                await ItemsService.respondOffer('offer_2', 'decline');
+                                _showSuccessToast('Offer withdrawn');
+                                _loadOffers();
+                              },
+                            ),
+                    ),
+                  ),
       ),
     );
   }
 }
+
 
 class _OfferTabButton extends StatelessWidget {
   final String label;

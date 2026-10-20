@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/components/global_header/global_header.dart';
 import '../../../core/components/global_header/header_config.dart';
+import '../../../core/services/items_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/images.dart';
 import '../../../core/theme/text_styles.dart';
@@ -61,55 +61,44 @@ class _MakeOfferViewState extends State<MakeOfferView> {
     });
   }
 
-  void _submitOffer() {
-    // Get the offer amount from the controller
-    final offerText = _offerAmountController.text.replaceAll('\$', '').trim();
+  Future<void> _submitOffer() async {
+    final offerText = _offerAmountController.text.replaceAll('\$', '').replaceAll(',', '').trim();
     final offerAmount = double.tryParse(offerText) ?? 0;
-    
-    // Show toast
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            SvgPicture.asset(
-              'assets/icons/bold_tick_circle_icon.svg',
-              width: 20.w,
-              height: 20.h,
-              colorFilter: const ColorFilter.mode(
-                Color(0xFF000000),
-                BlendMode.srcIn,
-              ),
-            ),
-            SizedBox(width: 12.w),
-            Expanded(
-              child: Text(
-                'Offer of \$${offerAmount.toStringAsFixed(2)} submitted successfully!',
-                style: TextStyles.mediumMedium.copyWith(
-                  color: const Color(0xFF000000),
-                  fontSize: 14.sp,
-                ),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: Colors.white,
-        duration: const Duration(seconds: 2),
-        elevation: 0,
-        margin: EdgeInsets.fromLTRB(12.w, 16.h, 12.w, 0),
-        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.r),
-        ),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
 
-    // Navigate after a delay
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        context.go('/user/my-finds/offers', extra: {'tab': 'send'});
-      }
+    if (offerAmount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid offer amount')),
+      );
+      return;
+    }
+
+    final success = await ItemsService.createOffer({
+      'productId': widget.productId,
+      'productTitle': 'Victorian Antique',
+      'productPrice': _askingPrice,
+      'offeredPrice': offerAmount,
+      'message': _messageController.text.trim(),
     });
+
+    if (!mounted) return;
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Offer of \$${offerAmount.toStringAsFixed(2)} submitted successfully!'),
+          backgroundColor: AppColors.darkText,
+        ),
+      );
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) {
+          context.go('/user/my-finds/offers', extra: {'tab': 'send'});
+        }
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to submit offer. Please try again.')),
+      );
+    }
   }
 
   HeaderConfig _headerConfig() {

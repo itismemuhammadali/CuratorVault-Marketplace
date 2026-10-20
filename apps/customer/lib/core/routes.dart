@@ -57,6 +57,7 @@ import 'package:vintage_app/features/user_flow/wallet/payment_methods_view.dart'
 import 'package:vintage_app/features/user_flow/wallet/release_payment_view.dart';
 import 'package:vintage_app/features/user_flow/wallet/transaction_history_view.dart';
 import 'package:vintage_app/features/user_flow/wallet/withdraw_funds_view.dart';
+import 'package:vintage_app/features/notifications/notifications_view.dart';
 
 
 class Routes {
@@ -199,6 +200,16 @@ class Routes {
         path: '/user/chat',
         pageBuilder: (context, state) =>
             slidePage(state: state, child: const ChatScreen()),
+      ),
+      GoRoute(
+        path: '/user/notifications',
+        pageBuilder: (context, state) =>
+            slidePage(state: state, child: const NotificationsView()),
+      ),
+      GoRoute(
+        path: '/notifications',
+        pageBuilder: (context, state) =>
+            slidePage(state: state, child: const NotificationsView()),
       ),
       GoRoute(
         path: '/single_message',

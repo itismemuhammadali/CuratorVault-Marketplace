@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vintage_app/core/components/global_header/collapsible_image_header.dart';
 import 'package:vintage_app/core/components/global_header/transparent_header.dart';
 import 'package:vintage_app/core/components/icons/icon_box.dart';
-import 'package:vintage_app/core/components/icons/icon_box_transparent.dart';
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
+import 'package:vintage_app/core/services/items_service.dart';
 import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/images.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
 import 'package:vintage_app/core/theme/buttons/custom_button.dart';
-
 import '../../../core/components/layout_components/horizontal_divider.dart';
 
 class SingleProductView extends StatefulWidget {
@@ -23,12 +22,10 @@ class SingleProductView extends StatefulWidget {
 }
 
 class _SingleProductViewState extends State<SingleProductView> {
-  ScrollController scrollController = ScrollController();
-  final List<String> productImages = [
-    AppImages.productOne,
-    AppImages.productTwo,
-    AppImages.productThree,
-  ];
+  final ScrollController scrollController = ScrollController();
+  bool _isLoading = true;
+  Map<String, dynamic>? _itemData;
+  List<String> productImages = [AppImages.productOne];
   String selectedImage = AppImages.productOne;
   double _gradientOpacity = 0.0;
 
@@ -36,6 +33,30 @@ class _SingleProductViewState extends State<SingleProductView> {
   void initState() {
     super.initState();
     scrollController.addListener(_onScroll);
+    _loadProduct();
+  }
+
+  Future<void> _loadProduct() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    final data = await ItemsService.getItemDetail(widget.productId);
+    if (mounted) {
+      setState(() {
+        _itemData = data;
+        if (data != null) {
+          final imgs = data['images'] as List?;
+          if (imgs != null && imgs.isNotEmpty) {
+            productImages = imgs.map((e) => e.toString()).toList();
+          } else if (data['imageUrl'] != null) {
+            productImages = [data['imageUrl'].toString()];
+          }
+          selectedImage = productImages.first;
+        }
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -46,15 +67,11 @@ class _SingleProductViewState extends State<SingleProductView> {
   }
 
   void _onScroll() {
-    // Smoothly transition gradient opacity as user scrolls
-    // Start fading in gradient at 200px, fully opaque at 300px
     double offset = scrollController.offset;
     double opacity = 0.0;
-    
     if (offset > 200) {
       opacity = ((offset - 200) / 100).clamp(0.0, 1.0);
     }
-    
     if (opacity != _gradientOpacity) {
       setState(() {
         _gradientOpacity = opacity;
@@ -76,6 +93,28 @@ class _SingleProductViewState extends State<SingleProductView> {
         statusBarIconBrightness: Brightness.dark,
       ),
     );
+
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppColors.bodyBg,
+        body: const Center(
+          child: JumpingDots(color: AppColors.redButton),
+        ),
+      );
+    }
+
+    final title = _itemData?['title'] ?? 'Victorian Antique';
+    final category = _itemData?['category'] ?? 'Furniture';
+    final era = _itemData?['era'] ?? 'Late 19th Century';
+    final price = (_itemData?['price'] ?? 1450.0).toDouble();
+    final estMax = (_itemData?['estimatedValueMax'] ?? (price * 1.2)).toDouble();
+    final description = _itemData?['description'] ?? 'Authenticated antique piece with certified provenance.';
+    final condition = _itemData?['condition'] ?? 'Excellent';
+    final provenance = _itemData?['provenance'] ?? 'Private Collection';
+    final sellerName = _itemData?['sellerName'] ?? 'Verified Dealer';
+    final sellerRating = (_itemData?['sellerRating'] ?? 4.9).toString();
+    final materials = (_itemData?['materials'] as List?)?.join(', ') ?? 'Solid Timber, Handcrafted Joinery';
+
     return TransparentHeader(
       backgroundColor: AppColors.bodyBg,
       extendBodyBehindAppBar: true,
@@ -108,7 +147,7 @@ class _SingleProductViewState extends State<SingleProductView> {
             )
           : null,
       title: Text(
-        "Victorian Pocket Watch",
+        title,
         style: TextStyles.boldMedium.copyWith(
           color: Colors.white,
           fontSize: 20.sp,
@@ -120,7 +159,7 @@ class _SingleProductViewState extends State<SingleProductView> {
         child: Column(
           children: [
             CollapsibleImageHeader(
-              image: selectedImage,
+              image: selectedImage.contains('assets/') ? selectedImage : AppImages.productOne,
               maxHeight: 340.h,
               minHeight: 200.h,
             ),
@@ -138,16 +177,20 @@ class _SingleProductViewState extends State<SingleProductView> {
                     onTap: () => _updateImage(image),
                     child: Container(
                       height: 80.h,
-                      width: 80.w,
+                      width: 80.h,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(10.r),
-                        border: isSelected
-                            ? Border.all(color: AppColors.redButton, width: 2)
-                            : null,
+                        border: Border.all(
+                          color: isSelected ? AppColors.redButton : Colors.transparent,
+                          width: 2,
+                        ),
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8.r),
-                        child: Image.asset(image, fit: BoxFit.cover),
+                        child: Image.asset(
+                          image.contains('assets/') ? image : AppImages.productOne,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                   );
@@ -163,9 +206,8 @@ class _SingleProductViewState extends State<SingleProductView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Title + tag
                     Text(
-                      'Victorian Pocket Watch',
+                      title,
                       style: TextStyles.semiBoldLarge.copyWith(
                         color: AppColors.lightText,
                       ),
@@ -184,7 +226,7 @@ class _SingleProductViewState extends State<SingleProductView> {
                             borderRadius: BorderRadius.circular(7.r),
                           ),
                           child: Text(
-                            'Horology',
+                            category,
                             style: TextStyles.regularExtraSmall.copyWith(
                               color: AppColors.lightText,
                             ),
@@ -204,7 +246,7 @@ class _SingleProductViewState extends State<SingleProductView> {
                             ),
                           ),
                           child: Text(
-                            'Late Victorian (1880-1900)',
+                            era,
                             style: TextStyles.regularExtraSmall.copyWith(
                               color: AppColors.lightText,
                             ),
@@ -212,15 +254,12 @@ class _SingleProductViewState extends State<SingleProductView> {
                         ),
                       ],
                     ),
-
                     SizedBox(height: 16.h),
-
-                    // Price row
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          '\$1,450',
+                          '\$${price.toInt()}',
                           style: TextStyles.boldLarge.copyWith(
                             fontSize: 30.sp,
                             color: AppColors.redButton,
@@ -228,7 +267,7 @@ class _SingleProductViewState extends State<SingleProductView> {
                         ),
                         SizedBox(width: 8.w),
                         Text(
-                          '\$1,800',
+                          '\$${estMax.toInt()}',
                           style: TextStyles.regularMedium.copyWith(
                             color: AppColors.greyText,
                             decoration: TextDecoration.lineThrough,
@@ -245,7 +284,7 @@ class _SingleProductViewState extends State<SingleProductView> {
                             borderRadius: BorderRadius.circular(4.r),
                           ),
                           child: Text(
-                            '19% OFF',
+                            'AUTHENTICATED',
                             style: TextStyles.boldExtraSmall.copyWith(
                               color: AppColors.bodyBg,
                             ),
@@ -253,247 +292,73 @@ class _SingleProductViewState extends State<SingleProductView> {
                         ),
                       ],
                     ),
-
                     SizedBox(height: 16.h),
-
-                    // Seller section card
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 16.w,
-                        vertical: 14.h,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.authBackBg,
-                        borderRadius: BorderRadius.circular(16.r),
-                      ),
-                      child: Row(
-                        children: [
-                          // Shield icon circle
-                          IconBox(
-                            icon: AppImages.sheildIcon,
-                            bgColor: AppColors.redButton,
-                            iconColor: AppColors.bodyBg,
-                            height: 44.h,
-                            width: 44.w,
-                            borderRadius: 999.r,
-                          ),
-                          SizedBox(width: 12.w),
-                          // Seller name + rating
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Heritage Antiques',
-                                  style: TextStyles.semiBoldSmall,
-                                ),
-                                SizedBox(height: 4.h),
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.star_rounded,
-                                      size: 14.sp,
-                                      color: Colors.orange,
-                                    ),
-                                    SizedBox(width: 4.w),
-                                    Text(
-                                      '4.8 (342 reviews)',
-                                      style: TextStyles.regularExtraSmall
-                                          .copyWith(color: AppColors.lightText),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(width: 12.w),
-                          // Outlined Chat button
-                          CustomButton(
-                            height: 36.h,
-                            width: 90.w,
-                            borderRadius: 999.r,
-                            btnColor: Colors.transparent,
-                            borderColor: AppColors.redButton,
-                            onTap: () {},
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Image.asset(
-                                  AppImages.chatBubbleIcon,
-                                  color: AppColors.redButton,
-                                  width: 15.w,
-                                ),
-                                SizedBox(width: 6.w),
-                                Text(
-                                  'Chat',
-                                  style: TextStyles.regularSmall.copyWith(
-                                    color: AppColors.redButton,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
+                    const HorizontalDivider(),
                     SizedBox(height: 16.h),
-
-                    // Location
-                    Row(
-                      children: [
-                        IconBoxTransparent(
-                          icon: AppImages.mapMarkerIcon,
-                          color: AppColors.redButton,
-                          size: 20,
-                        ),
-                        SizedBox(width: 6.w),
-                        Expanded(
-                          child: Text(
-                            'London, England',
-                            style: TextStyles.regularSmall.copyWith(
-                              color: AppColors.greyText,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    SizedBox(height: 20.h),
-
-                    // Description
-                    Text('Description', style: TextStyles.semiBoldMedium.copyWith(fontSize: TextStyles.semiBoldMedium.fontSize! + 2.sp)),
-                    SizedBox(height: 8.h),
                     Text(
-                      'A beautifully preserved Victorian-era pocket watch featuring intricate hand-engraved patterns on the case and a pristine white enamel dial with Roman numerals. The mechanical movement is in excellent working condition, with all original components intact.',
+                      'Description',
+                      style: TextStyles.semiBoldMedium.copyWith(
+                        color: AppColors.lightText,
+                      ),
+                    ),
+                    SizedBox(height: 6.h),
+                    Text(
+                      description,
                       style: TextStyles.regularSmall.copyWith(
                         color: AppColors.greyText,
-                        fontSize: TextStyles.regularSmall.fontSize! + 2.sp,
+                        height: 1.5,
                       ),
                     ),
-
-                    SizedBox(height: 20.h),
-
-                    // Specifications
-                    Text('Specifications', style: TextStyles.semiBoldMedium),
-                    SizedBox(height: 12.h),
-                    _specRow('Diameter', '50mm'),
-                    Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12.h),
-                      child: HorizontalDivider(width: double.infinity),
+                    SizedBox(height: 16.h),
+                    const HorizontalDivider(),
+                    SizedBox(height: 16.h),
+                    Text(
+                      'Item Specifications',
+                      style: TextStyles.semiBoldMedium.copyWith(
+                        color: AppColors.lightText,
+                      ),
                     ),
-                    _specRow('Movement', 'Mechanical, key-wind'),
-                    Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12.h),
-                      child: HorizontalDivider(width: double.infinity),
-                    ),
-                    _specRow('Case Material', 'Gold-plated brass'),
-                    Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12.h),
-                      child: HorizontalDivider(width: double.infinity),
-                    ),
-                    _specRow('Dial', 'White enamel'),
-                    Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12.h),
-                      child: HorizontalDivider(width: double.infinity),
-                    ),
-                    _specRow('Hands', 'Original blued steel'),
-                    Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12.h),
-                      child: HorizontalDivider(width: double.infinity),
-                    ),
-                    _specRow('Provenance', 'Documented'),
-                    Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12.h),
-                      child: HorizontalDivider(width: double.infinity),
-                    ),
-
-                    SizedBox(height: 20.h),
-
-                    // Why buy this
-                    Text('Why Buy This?', style: TextStyles.semiBoldSmall.copyWith(fontSize: TextStyles.semiBoldSmall.fontSize! + 2.sp)),
-                    SizedBox(height: 10.h,),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final itemWidth = (constraints.maxWidth - 10.w) / 2;
-
-                        return Wrap(
-                          spacing: 10.w,
-                          runSpacing: 10.h,
-                          children: [
-                            _whyChip(
-                              'Verified by AI authentication',
-                              itemWidth,
-                            ),
-                            _whyChip(
-                              'Certified by expert horologist',
-                              itemWidth,
-                            ),
-                            _whyChip('Original components intact', itemWidth),
-                            _whyChip('Working mechanical movement', itemWidth),
-                            _whyChip('Documented provenance', itemWidth),
-                            _whyChip('30-day money-back guarantee', itemWidth),
-                          ],
-                        );
-                      },
-                    ),
-
-                    SizedBox(height: 20.h),
-
-                    // Condition section
+                    SizedBox(height: 8.h),
+                    _specRow('Era', era),
+                    _specRow('Condition', condition),
+                    _specRow('Materials', materials),
+                    _specRow('Provenance', provenance),
+                    _specRow('Seller', sellerName),
+                    _specRow('Seller Rating', '$sellerRating ★'),
+                    SizedBox(height: 16.h),
+                    const HorizontalDivider(),
+                    SizedBox(height: 16.h),
                     Container(
-                      padding: EdgeInsets.all(12.w),
+                      padding: EdgeInsets.all(14.w),
                       decoration: BoxDecoration(
-                        color: AppColors.authBackBg,
-                        borderRadius: BorderRadius.circular(12.r),
+                        color: const Color(0xFFFAF7F2),
+                        borderRadius: BorderRadius.circular(14.r),
+                        border: Border.all(color: const Color(0xFFEADBCE)),
                       ),
                       child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          SvgPicture.asset(
-                            'assets/icons/info_icon.svg',
-                            width: 20.w,
-                            height: 20.w,
-                            colorFilter: const ColorFilter.mode(
-                              AppColors.redButton,
-                              BlendMode.srcIn,
-                            ),
-                          ),
-                          SizedBox(width: 10.w),
+                          Icon(Icons.shield_outlined, color: AppColors.redButton, size: 24.sp),
+                          SizedBox(width: 12.w),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Condition',
-                                  style: TextStyles.semiBoldSmall.copyWith(fontSize: TextStyles.semiBoldSmall.fontSize! + 2.sp),
+                                  'Guaranteed Authenticity',
+                                  style: TextStyles.semiBoldSmall.copyWith(color: AppColors.lightText),
                                 ),
-                                SizedBox(height: 4.h),
+                                SizedBox(height: 2.h),
                                 Text(
-                                  'Authenticated by AI and certified experts. All items come with a certificate of authenticity.',
-                                  style: TextStyles.regularExtraSmall.copyWith(
-                                    color: AppColors.lightText,
-                                    fontSize: TextStyles.regularExtraSmall.fontSize! + 2.sp,
-                                  ),
+                                  'Inspected by certified appraisers and backed by buyer protection.',
+                                  style: TextStyles.regularExtraSmall.copyWith(color: AppColors.greyText),
                                 ),
                               ],
-                            ),
-                          ),
-                          SizedBox(width: 8.w),
-                          Text(
-                            'Excellent',
-                            style: TextStyles.semiBoldExtraSmall.copyWith(
-                              color: AppColors.greenSuccess,
                             ),
                           ),
                         ],
                       ),
                     ),
-
                     SizedBox(height: 24.h),
-
-                    // Bottom buttons
                     Row(
                       children: [
                         Expanded(
@@ -533,7 +398,9 @@ class _SingleProductViewState extends State<SingleProductView> {
       ),
     );
   }
-}Widget _specRow(String label, String value) {
+}
+
+Widget _specRow(String label, String value) {
   return Padding(
     padding: EdgeInsets.symmetric(vertical: 6.h),
     child: Row(
@@ -546,40 +413,6 @@ class _SingleProductViewState extends State<SingleProductView> {
         ),
         Text(value, style: TextStyles.regularMedium),
       ],
-    ),
-  );
-}
-
-Widget _whyChip(String text, double width) {
-  return SizedBox(
-    width: width,
-    child: Container(
-      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-      decoration: BoxDecoration(
-        color: const Color(0xFF4ADE80).withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(10.r),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          IconBoxTransparent(
-            icon: AppImages.tickIcon,
-            color: AppColors.greenSuccess,
-            size: 20,
-          ),
-          SizedBox(width: 7.w),
-          Expanded(
-            child: Text(
-              text,
-              softWrap: true,
-              style: TextStyles.regularExtraSmall.copyWith(
-                color: AppColors.lightText,
-                fontSize: TextStyles.regularExtraSmall.fontSize! + 2.sp,
-              ),
-            ),
-          ),
-        ],
-      ),
     ),
   );
 }

@@ -19,12 +19,13 @@ class AuthScreensLayout extends StatefulWidget {
 }
 
 class _AuthScreensLayoutState extends State<AuthScreensLayout> {
-  final double _headerHeight = 300.h;
+  final double _headerHeight = 260.h;
   final double radius = 45.r;
+
   @override
   Widget build(BuildContext context) {
     SystemChrome.setSystemUIOverlayStyle(
-      SystemUiOverlayStyle(
+      const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
       ),
@@ -36,14 +37,11 @@ class _AuthScreensLayoutState extends State<AuthScreensLayout> {
           SafeArea(
             child: SingleChildScrollView(
               child: Container(
-                decoration: BoxDecoration(color: AppColors.bodyBg),
+                decoration: const BoxDecoration(color: AppColors.bodyBg),
                 padding: EdgeInsets.only(left: 24.w, right: 24.w, bottom: 24.h),
                 child: Column(
                   children: [
                     Container(
-                      // height: MediaQuery.of(
-                      //   context,
-                      // ).size.height, // will be removed
                       decoration: BoxDecoration(
                         color: AppColors.bodyBg,
                         borderRadius: BorderRadius.only(
@@ -54,13 +52,14 @@ class _AuthScreensLayoutState extends State<AuthScreensLayout> {
                           BoxShadow(
                             color: AppColors.shadowColor,
                             blurRadius: 50,
-                            offset: Offset(0, 25),
+                            offset: const Offset(0, 25),
                             spreadRadius: -12,
                           ),
                         ],
                       ),
                       child: Container(
-                        margin: EdgeInsets.only(top: _headerHeight - 80.h),
+                        margin: EdgeInsets.only(top: _headerHeight - 40.h),
+                        padding: EdgeInsets.only(top: 40.h),
                         child: widget.body,
                       ),
                     ),

@@ -11,6 +11,11 @@ import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/images.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
 
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:vintage_app/core/services/api_service.dart';
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
+
 class EditProfile extends StatefulWidget {
   const EditProfile({super.key});
 
@@ -30,6 +35,9 @@ class _EditProfileState extends State<EditProfile> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _websiteController = TextEditingController();
 
+  bool _isLoading = false;
+  bool _isSaving = false;
+
   @override
   void initState() {
     super.initState();
@@ -37,6 +45,88 @@ class _EditProfileState extends State<EditProfile> {
     _bioController.addListener(() {
       if (mounted) setState(() {});
     });
+    _loadProfileData();
+  }
+
+  Future<void> _loadProfileData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      if (user.email != null) _emailController.text = user.email!;
+      if (user.displayName != null) {
+        _businessNameController.text = user.displayName!;
+        _usernameController.text = user.displayName!;
+      }
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final res = await ApiService.get('/api/v1/profile/me');
+      if (res is Map && mounted) {
+        final data = Map<String, dynamic>.from(res);
+        _businessNameController.text = (data['storeName'] ?? data['name'] ?? _businessNameController.text).toString();
+        _usernameController.text = (data['ownerName'] ?? data['name'] ?? _usernameController.text).toString();
+        _emailController.text = (data['email'] ?? _emailController.text).toString();
+        _phoneController.text = (data['phone'] ?? '').toString();
+        _locationController.text = (data['location'] ?? '').toString();
+        _bioController.text = (data['bio'] ?? '').toString();
+        _websiteController.text = (data['website'] ?? '').toString();
+      }
+    } catch (e) {
+      debugPrint('Error fetching dealer profile for edit: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _saveChanges() async {
+    final user = FirebaseAuth.instance.currentUser;
+    setState(() => _isSaving = true);
+    FocusScope.of(context).unfocus();
+
+    try {
+      final payload = {
+        'name': _businessNameController.text.trim(),
+        'storeName': _businessNameController.text.trim(),
+        'ownerName': _usernameController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'location': _locationController.text.trim(),
+        'bio': _bioController.text.trim(),
+        'website': _websiteController.text.trim(),
+      };
+
+      await ApiService.put('/api/v1/profile/me', payload);
+
+      if (user != null) {
+        await FirebaseFirestore.instance.collection('dealers').doc(user.uid).set(
+          payload,
+          SetOptions(merge: true),
+        );
+        if (_businessNameController.text.trim().isNotEmpty) {
+          await user.updateDisplayName(_businessNameController.text.trim());
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Dealer profile updated successfully!'),
+            backgroundColor: Color(0xFF10B981),
+          ),
+        );
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating profile: ${e.toString().replaceAll('Exception: ', '')}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   Future<void> _pickProfileImage() async {
@@ -90,11 +180,18 @@ class _EditProfileState extends State<EditProfile> {
       backgroundColor: AppColors.subPageBg,
       body: SafeArea(
         top: false,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 120.h),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        child: _isLoading
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(40.0),
+                  child: JumpingDotsProgress(color: AppColors.gradientColor1),
+                ),
+              )
+            : SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 120.h),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
               Center(
                 child: Column(
                   children: [
@@ -294,10 +391,7 @@ class _EditProfileState extends State<EditProfile> {
                 SizedBox(width: 10.w),
                 Expanded(
                   child: GestureDetector(
-                    onTap: () {
-                      FocusScope.of(context).unfocus();
-                      context.pop();
-                    },
+                    onTap: _isSaving ? null : _saveChanges,
                     child: Container(
                       height: 54.h,
                       decoration: BoxDecoration(
@@ -311,27 +405,29 @@ class _EditProfileState extends State<EditProfile> {
                         ),
                         borderRadius: BorderRadius.circular(16.r),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SvgPicture.asset(
-                            'assets/icons/save_icon.svg',
-                            width: 17.w,
-                            height: 17.w,
-                            colorFilter: const ColorFilter.mode(
-                              Colors.white,
-                              BlendMode.srcIn,
+                      child: _isSaving
+                          ? const Center(child: JumpingDotsProgress())
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SvgPicture.asset(
+                                  'assets/icons/save_icon.svg',
+                                  width: 17.w,
+                                  height: 17.w,
+                                  colorFilter: const ColorFilter.mode(
+                                    Colors.white,
+                                    BlendMode.srcIn,
+                                  ),
+                                ),
+                                SizedBox(width: 8.w),
+                                Text(
+                                  'Save Changes',
+                                  style: TextStyles.mediumMedium.copyWith(
+                                    color: AppColors.bodyBg,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          SizedBox(width: 8.w),
-                          Text(
-                            'Save Changes',
-                            style: TextStyles.mediumMedium.copyWith(
-                              color: AppColors.bodyBg,
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
                   ),
                 ),

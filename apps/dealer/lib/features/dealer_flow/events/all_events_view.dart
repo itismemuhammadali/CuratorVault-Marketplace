@@ -10,6 +10,9 @@ import '../../../core/components/global_header/header_config.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/text_styles.dart';
 
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
+import 'package:vintage_app/core/services/api_service.dart';
+
 class AllEventsView extends StatefulWidget {
   const AllEventsView({super.key});
 
@@ -18,51 +21,69 @@ class AllEventsView extends StatefulWidget {
 }
 
 class _AllEventsViewState extends State<AllEventsView> {
-  final List<_EventData> _events = const [
-    _EventData(
-      id: '1',
-      imageAsset: AppImages.exploreBanner,
-      title: 'Victorian Era Collectibles Auction',
-      location: 'Grand Auction House, London',
-      dateText: 'Feb 12, 2026',
-      timeText: '10:00 AM - 4:00 PM',
-      joinedText: '156/200 attendees',
-      difficultyLabel: 'Auction',
-    ),
-    _EventData(
-      id: '2',
-      imageAsset: AppImages.exploreBanner,
-      title: 'Jewelry & Gems Discovery',
-      location: 'Vintage Quarter',
-      dateText: 'Feb 15, 2026',
-      timeText: '3:00 PM - 7:00 PM',
-      joinedText: '65/80 joined',
-      difficultyLabel: 'Workshop',
-    ),
-    _EventData(
-      id: '3',
-      imageAsset: AppImages.exploreBanner,
-      title: 'Victorian Era Collectibles Auction',
-      location: 'Grand Auction House, London',
-      dateText: 'Feb 12, 2026',
-      timeText: '10:00 AM - 4:00 PM',
-      joinedText: '156/200 attendees',
-      difficultyLabel: 'Auction',
-    ),
-    _EventData(
-      id: '4',
-      imageAsset: AppImages.exploreBanner,
-      title: 'Jewelry & Gems Discovery',
-      location: 'Vintage Quarter',
-      dateText: 'Feb 15, 2026',
-      timeText: '3:00 PM - 7:00 PM',
-      joinedText: '65/80 joined',
-      difficultyLabel: 'Workshop',
-    ),
-  ];
+  int _selectedTab = 0;
+  List<EventData> _events = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchEvents();
+  }
+
+  Future<void> _fetchEvents() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final res = await ApiService.get('/api/v1/events');
+      if (res is Map && res.containsKey('events') && res['events'] is List) {
+        final rawList = res['events'] as List;
+        final parsed = rawList
+            .map((item) => EventData.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+
+        if (mounted) {
+          setState(() {
+            _events = parsed;
+            _isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _events = [];
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching events in dealer app: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  List<EventData> get _visibleEvents {
+    if (_selectedTab == 0) {
+      return _events.where((e) => e.status == 'Upcoming' || e.status == 'Ongoing').toList();
+    } else if (_selectedTab == 1) {
+      return _events.where((e) => e.status == 'Upcoming').toList();
+    } else if (_selectedTab == 2) {
+      return _events.where((e) => e.status == 'Ongoing').toList();
+    } else {
+      return _events.where((e) => e.status == 'Past').toList();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final tabs = ['All', 'Upcoming', 'Ongoing', 'Past'];
+
     return Scaffold(
       backgroundColor: AppColors.bodyBg,
       appBar: SimpleHeader(
@@ -77,7 +98,7 @@ class _AllEventsViewState extends State<AllEventsView> {
               ),
               SizedBox(height: 8.h),
               Text(
-                'Join events and earn rewards',
+                'Explore auctions, workshops & gatherings',
                 style: TextStyles.regularMedium.copyWith(
                   color: AppColors.darkText,
                 ),
@@ -87,40 +108,91 @@ class _AllEventsViewState extends State<AllEventsView> {
           height: 194.h,
         ),
       ),
-      body: Padding(
-        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
+      body: RefreshIndicator(
+        onRefresh: _fetchEvents,
+        color: AppColors.gradientColor1,
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.start,
             children: [
-              Text(
-                'Upcoming Events',
-                style: TextStyles.semiBoldMedium.copyWith(
-                  color: AppColors.lightText,
-                  fontSize: 20.sp,
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: List.generate(tabs.length, (index) {
+                    final isSelected = _selectedTab == index;
+                    return Padding(
+                      padding: EdgeInsets.only(right: 8.w),
+                      child: GestureDetector(
+                        onTap: () => setState(() => _selectedTab = index),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.gradientColor1 : Colors.white,
+                            borderRadius: BorderRadius.circular(20.r),
+                            border: Border.all(
+                              color: isSelected ? AppColors.gradientColor1 : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: Text(
+                            tabs[index],
+                            style: TextStyles.mediumSmall.copyWith(
+                              color: isSelected ? Colors.white : AppColors.lightText,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
                 ),
               ),
-              SizedBox(height: 14.h),
-              Column(
-                children: [
-                  for (final event in _events) ...[
-                    EventCard(
-                      imageAsset: event.imageAsset,
-                      title: event.title,
-                      location: event.location,
-                      dateText: event.dateText,
-                      timeText: event.timeText,
-                      joinedText: event.joinedText,
-                      difficultyLabel: event.difficultyLabel,
-                      onViewDetails: () {
-                        context.push('/events/${event.id}');
-                      },
+              SizedBox(height: 16.h),
+              if (_isLoading)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40.0),
+                    child: JumpingDotsProgress(color: AppColors.gradientColor1),
+                  ),
+                )
+              else if (_visibleEvents.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40.h),
+                    child: Column(
+                      children: [
+                        Icon(Icons.event_busy, size: 48.sp, color: AppColors.greyText),
+                        SizedBox(height: 12.h),
+                        Text(
+                          'No events found in this tab.',
+                          style: TextStyles.regularMedium.copyWith(color: AppColors.greyText),
+                        ),
+                      ],
                     ),
-                    SizedBox(height: 16.h),
+                  ),
+                )
+              else
+                Column(
+                  children: [
+                    for (final event in _visibleEvents) ...[
+                      EventCard(
+                        imageAsset: event.imageAsset,
+                        title: event.title,
+                        location: event.location,
+                        dateText: event.dateText,
+                        timeText: event.timeText,
+                        joinedText: event.joinedText,
+                        difficultyLabel: event.difficultyLabel,
+                        status: event.status,
+                        onViewDetails: () {
+                          context.push('/events/${event.id}');
+                        },
+                      ),
+                      SizedBox(height: 16.h),
+                    ],
                   ],
-                ],
-              ),
+                ),
             ],
           ),
         ),
@@ -129,7 +201,7 @@ class _AllEventsViewState extends State<AllEventsView> {
   }
 }
 
-class _EventData {
+class EventData {
   final String id;
   final String imageAsset;
   final String title;
@@ -138,8 +210,9 @@ class _EventData {
   final String timeText;
   final String joinedText;
   final String difficultyLabel;
+  final String status;
 
-  const _EventData({
+  const EventData({
     required this.id,
     required this.imageAsset,
     required this.title,
@@ -148,7 +221,39 @@ class _EventData {
     required this.timeText,
     required this.joinedText,
     required this.difficultyLabel,
+    required this.status,
   });
+
+  factory EventData.fromJson(Map<String, dynamic> json) {
+    final startDate = (json['start_date'] ?? json['startDate'] ?? '').toString();
+    final endDate = (json['end_date'] ?? json['endDate'] ?? '').toString();
+    final startTime = (json['start_time'] ?? json['startTime'] ?? '').toString();
+    final endTime = (json['end_time'] ?? json['endTime'] ?? '').toString();
+    final participants = json['participants_count'] ?? json['participantsCount'] ?? 0;
+    final maxParticipants = json['max_participants'] ?? json['maxParticipants'] ?? 100;
+
+    String dateFormatted = startDate;
+    if (endDate.isNotEmpty && endDate != startDate) {
+      dateFormatted = '$startDate - $endDate';
+    }
+
+    String timeFormatted = startTime;
+    if (endTime.isNotEmpty && endTime != startTime) {
+      timeFormatted = '$startTime - $endTime';
+    }
+
+    return EventData(
+      id: (json['id'] ?? '').toString(),
+      imageAsset: AppImages.exploreBanner,
+      title: (json['title'] ?? 'Vintage Event').toString(),
+      location: (json['location'] ?? 'Online / Main Hall').toString(),
+      dateText: dateFormatted.isNotEmpty ? dateFormatted : 'Upcoming Date',
+      timeText: timeFormatted.isNotEmpty ? timeFormatted : '10:00 AM - 4:00 PM',
+      joinedText: '$participants/$maxParticipants joined',
+      difficultyLabel: (json['event_type'] ?? json['type'] ?? 'Auction').toString(),
+      status: (json['status'] ?? 'Upcoming').toString(),
+    );
+  }
 }
 
 class EventCard extends StatelessWidget {
@@ -159,6 +264,7 @@ class EventCard extends StatelessWidget {
   final String timeText;
   final String joinedText;
   final String difficultyLabel;
+  final String? status;
   final VoidCallback onViewDetails;
 
   const EventCard({
@@ -170,6 +276,7 @@ class EventCard extends StatelessWidget {
     required this.timeText,
     required this.joinedText,
     required this.difficultyLabel,
+    this.status,
     required this.onViewDetails,
   });
 

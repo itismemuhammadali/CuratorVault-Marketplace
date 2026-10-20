@@ -6,6 +6,9 @@ import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/images.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
 
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
+import 'package:vintage_app/core/services/api_service.dart';
+
 class EventDetailView extends StatefulWidget {
   final String eventId;
 
@@ -16,8 +19,35 @@ class EventDetailView extends StatefulWidget {
 }
 
 class _EventDetailViewState extends State<EventDetailView> {
+  bool _isLoading = true;
   bool _isRegistered = false;
   OverlayEntry? _toastOverlay;
+  Map<String, dynamic>? _eventData;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEventDetails();
+  }
+
+  Future<void> _loadEventDetails() async {
+    try {
+      final res = await ApiService.get('/api/v1/events/${widget.eventId}');
+      if (res is Map && res.containsKey('event') && res['event'] is Map) {
+        if (mounted) {
+          setState(() {
+            _eventData = Map<String, dynamic>.from(res['event']);
+            _isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      debugPrint('Error loading event detail in dealer app: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -128,9 +158,32 @@ class _EventDetailViewState extends State<EventDetailView> {
 
   @override
   Widget build(BuildContext context) {
-    final registeredCount = _isRegistered ? 48 : 47;
-    final spotsLeft = 100 - registeredCount;
-    final progress = registeredCount / 100;
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppColors.bodyBg,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: const BackButton(color: AppColors.darkText),
+        ),
+        body: const Center(
+          child: JumpingDotsProgress(color: AppColors.gradientColor1),
+        ),
+      );
+    }
+
+    final title = (_eventData?['title'] ?? 'Vintage Event').toString();
+    final location = (_eventData?['location'] ?? 'Main Auction Hall, NY').toString();
+    final description = (_eventData?['description'] ?? 'Join collectors and antique enthusiasts for this live curated session.').toString();
+    final startDate = (_eventData?['start_date'] ?? _eventData?['startDate'] ?? 'Upcoming').toString();
+    final startTime = (_eventData?['start_time'] ?? _eventData?['startTime'] ?? '10:00 AM').toString();
+    final endTime = (_eventData?['end_time'] ?? _eventData?['endTime'] ?? '4:00 PM').toString();
+    final timeFormatted = startTime == endTime ? startTime : '$startTime - $endTime';
+    final maxParticipants = (_eventData?['max_participants'] ?? 100) as int;
+    int registeredCount = (_eventData?['participants_count'] ?? 48) as int;
+    if (_isRegistered) registeredCount += 1;
+    final spotsLeft = (maxParticipants - registeredCount).clamp(0, maxParticipants);
+    final progress = (registeredCount / (maxParticipants > 0 ? maxParticipants : 1)).clamp(0.0, 1.0);
 
     return TransparentHeader(
       backgroundColor: AppColors.bodyBg,
@@ -139,12 +192,11 @@ class _EventDetailViewState extends State<EventDetailView> {
       showBackButton: true,
       showDivider: true,
       extendBodyBehindAppBar: true,
-      headerPadding: EdgeInsets.zero,
       body: Stack(
         children: [
           Column(
             children: [
-              _EventHero(),
+              const _EventHero(),
               Expanded(
                 child: SingleChildScrollView(
                   padding: EdgeInsets.fromLTRB(18.w, 16.h, 18.w, 110.h),
@@ -152,7 +204,7 @@ class _EventDetailViewState extends State<EventDetailView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Downtown AR Treasure Hunt',
+                        title,
                         style: TextStyles.boldLarge.copyWith(
                           color: AppColors.gradientColor1,
                           fontSize: 24.sp,
@@ -192,23 +244,23 @@ class _EventDetailViewState extends State<EventDetailView> {
                           ),
                         ),
                       ],
-                      SizedBox(height: 4.h),
+                      SizedBox(height: 14.h),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: const _InfoTile(
+                            child: _InfoTile(
                               icon: Icons.calendar_today_outlined,
                               label: 'Date',
-                              value: 'Feb 5, 2026',
+                              value: startDate,
                             ),
                           ),
                           SizedBox(width: 12.w),
                           Expanded(
-                            child: const _InfoTile(
+                            child: _InfoTile(
                               icon: Icons.access_time_rounded,
                               label: 'Time',
-                              value: '2:00 PM - 6:00 PM',
+                              value: timeFormatted,
                             ),
                           ),
                         ],
@@ -218,10 +270,10 @@ class _EventDetailViewState extends State<EventDetailView> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: const _InfoTile(
+                            child: _InfoTile(
                               icon: Icons.location_on_outlined,
                               label: 'Location',
-                              value: 'Downtown Historic\nDistrict',
+                              value: location,
                               useSvgIcon: true,
                               svgIconPath: 'assets/icons/location_marker_icon.svg',
                             ),
@@ -243,10 +295,14 @@ class _EventDetailViewState extends State<EventDetailView> {
                         progress: progress,
                       ),
                       SizedBox(height: 14.h),
-                      const _ContentCard(
+                      _ContentCard(
                         title: 'About This Event',
                         child: Text(
-                          'Explore the historic downtown area and discover hidden antique treasures using AR technology. This immersive experience combines cutting-edge augmented reality with the thrill of treasure hunting.',
+                          description,
+                          style: TextStyles.regularMedium.copyWith(
+                            color: AppColors.lightText,
+                            height: 1.5,
+                          ),
                         ),
                       ),
                       SizedBox(height: 14.h),

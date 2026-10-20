@@ -10,6 +10,9 @@ import 'package:vintage_app/core/theme/buttons/custom_button.dart';
 import 'package:vintage_app/core/theme/images.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
 
+import 'package:vintage_app/core/services/auth_service.dart';
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
+
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
@@ -23,6 +26,61 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
+  final AuthService _authService = AuthService();
+
+  Future<void> _handleSignup() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all fields')),
+      );
+      return;
+    }
+
+    if (password != confirmPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Passwords do not match')),
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password must be at least 6 characters')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await _authService.signUpDealer(
+        email: email,
+        password: password,
+        storeName: 'Dealer Antique Store',
+        ownerName: email.split('@').first,
+      );
+      if (mounted) {
+        context.go('/homeScreen');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -285,15 +343,16 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
               SizedBox(height: 22.h),
               CustomButton(
-                onTap: () => context.go('/dealer/business-info'),
+                onTap: _isLoading ? () {} : () => _handleSignup(),
                 height: 52.h,
                 borderRadius: 14.r,
                 btnColor: AppColors.redButton,
-                btnText: 'Sign Up',
+                btnText: _isLoading ? null : 'Sign Up',
                 textStyle: TextStyles.boldMedium.copyWith(
                   color: Colors.white,
                   fontSize: 16.sp,
                 ),
+                child: _isLoading ? const JumpingDotsProgress() : null,
               ),
               SizedBox(height: 26.h),
               Row(

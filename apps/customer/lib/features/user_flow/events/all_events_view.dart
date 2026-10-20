@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vintage_app/core/components/icons/icon_box.dart';
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
+import 'package:vintage_app/core/services/api_service.dart';
 import 'package:vintage_app/core/theme/buttons/custom_button.dart';
 import 'package:vintage_app/core/theme/images.dart';
 
@@ -17,51 +18,69 @@ class AllEventsView extends StatefulWidget {
 }
 
 class _AllEventsViewState extends State<AllEventsView> {
-  final List<_EventData> _events = const [
-    _EventData(
-      id: '1',
-      imageAsset: AppImages.exploreBanner,
-      title: 'Victorian Era Collectibles Auction',
-      location: 'Grand Auction House, London',
-      dateText: 'Feb 12, 2026',
-      timeText: '10:00 AM - 4:00 PM',
-      joinedText: '156/200 attendees',
-      difficultyLabel: 'Easy',
-    ),
-    _EventData(
-      id: '2',
-      imageAsset: AppImages.exploreBanner,
-      title: 'Jewelry & Gems Discovery',
-      location: 'Vintage Quarter',
-      dateText: 'Feb 15, 2026',
-      timeText: '3:00 PM - 7:00 PM',
-      joinedText: '65/80 joined',
-      difficultyLabel: 'Medium',
-    ),
-    _EventData(
-      id: '3',
-      imageAsset: AppImages.exploreBanner,
-      title: 'Victorian Era Collectibles Auction',
-      location: 'Grand Auction House, London',
-      dateText: 'Feb 12, 2026',
-      timeText: '10:00 AM - 4:00 PM',
-      joinedText: '156/200 attendees',
-      difficultyLabel: 'Hard',
-    ),
-    _EventData(
-      id: '4',
-      imageAsset: AppImages.exploreBanner,
-      title: 'Jewelry & Gems Discovery',
-      location: 'Vintage Quarter',
-      dateText: 'Feb 15, 2026',
-      timeText: '3:00 PM - 7:00 PM',
-      joinedText: '65/80 joined',
-      difficultyLabel: 'Easy',
-    ),
-  ];
+  int _selectedTab = 0;
+  List<EventData> _events = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchEvents();
+  }
+
+  Future<void> _fetchEvents() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final res = await ApiService.get('/api/v1/events');
+      if (res is Map && res.containsKey('events') && res['events'] is List) {
+        final rawList = res['events'] as List;
+        final parsed = rawList
+            .map((item) => EventData.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+
+        if (mounted) {
+          setState(() {
+            _events = parsed;
+            _isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _events = [];
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching events in customer app from backend: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  List<EventData> get _visibleEvents {
+    if (_selectedTab == 0) {
+      return _events.where((e) => e.status == 'Upcoming' || e.status == 'Ongoing').toList();
+    } else if (_selectedTab == 1) {
+      return _events.where((e) => e.status == 'Upcoming').toList();
+    } else if (_selectedTab == 2) {
+      return _events.where((e) => e.status == 'Ongoing').toList();
+    } else {
+      return _events.where((e) => e.status == 'Past').toList();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final tabs = ['All Events', 'Upcoming', 'Ongoing', 'Past'];
+
     return Scaffold(
       backgroundColor: AppColors.bodyBg,
       body: Column(
@@ -74,8 +93,9 @@ class _AllEventsViewState extends State<AllEventsView> {
                 bottomRight: Radius.circular(30.r),
               ),
             ),
-            padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 24.h),
+            padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 20.h),
             child: SafeArea(
+              bottom: false,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -89,7 +109,11 @@ class _AllEventsViewState extends State<AllEventsView> {
                         width: 40.w,
                         borderRadius: 100.r,
                         onTap: () {
-                          context.go('/homeScreen');
+                          if (context.canPop()) {
+                            context.pop();
+                          } else {
+                            context.go('/homeScreen');
+                          }
                         },
                       ),
                     ],
@@ -107,52 +131,111 @@ class _AllEventsViewState extends State<AllEventsView> {
                     'Join events and earn rewards',
                     style: TextStyles.regularMedium.copyWith(
                       color: const Color(0xFFF8E8C7),
-                      fontSize: 16.sp,
+                      fontSize: 15.sp,
                     ),
                   ),
                 ],
               ),
             ),
           ),
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Upcoming Events',
-                      style: TextStyles.semiBoldMedium.copyWith(
-                        color: AppColors.lightText,
-                        fontSize: 20.sp,
+          SizedBox(height: 14.h),
+          // Status Tabs Filter Bar
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(horizontal: 16.w),
+            child: Row(
+              children: List.generate(tabs.length, (index) {
+                final isSelected = _selectedTab == index;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedTab = index),
+                  child: Container(
+                    margin: EdgeInsets.only(right: 10.w),
+                    padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppColors.gradientColor1 : AppColors.authBackBg,
+                      borderRadius: BorderRadius.circular(20.r),
+                      border: Border.all(
+                        color: isSelected ? AppColors.gradientColor1 : AppColors.eventTabBorder,
                       ),
                     ),
-                    SizedBox(height: 14.h),
-                    Column(
-                      children: [
-                        for (final event in _events) ...[
-                          EventCard(
-                            imageAsset: event.imageAsset,
-                            title: event.title,
-                            location: event.location,
-                            dateText: event.dateText,
-                            timeText: event.timeText,
-                            joinedText: event.joinedText,
-                            difficultyLabel: event.difficultyLabel,
-                            onViewDetails: () {
-                              context.push('/events/${event.id}');
+                    child: Text(
+                      tabs[index],
+                      style: TextStyles.semiBoldSmall.copyWith(
+                        color: isSelected ? Colors.white : AppColors.lightText,
+                        fontSize: 13.sp,
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+          SizedBox(height: 10.h),
+          Expanded(
+            child: _isLoading
+                ? Center(
+                    child: JumpingDotsProgress(
+                      text: 'Loading Events',
+                      textStyle: TextStyles.semiBoldMedium.copyWith(
+                        color: AppColors.lightText,
+                      ),
+                      dotColor: AppColors.gradientColor1,
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _fetchEvents,
+                    color: AppColors.gradientColor1,
+                    child: _visibleEvents.isEmpty
+                        ? SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 80.h, horizontal: 24.w),
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.event_busy_outlined,
+                                      size: 54.sp,
+                                      color: AppColors.greyText,
+                                    ),
+                                    SizedBox(height: 14.h),
+                                    Text(
+                                      'No events found',
+                                      style: TextStyles.boldMedium.copyWith(
+                                        color: AppColors.lightText,
+                                        fontSize: 18.sp,
+                                      ),
+                                    ),
+                                    SizedBox(height: 6.h),
+                                    Text(
+                                      'Pull down to refresh and check for new events.',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyles.regularSmall.copyWith(
+                                        color: AppColors.greyText,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 30.h),
+                            itemCount: _visibleEvents.length,
+                            separatorBuilder: (context, index) => SizedBox(height: 16.h),
+                            itemBuilder: (context, index) {
+                              final event = _visibleEvents[index];
+                              return EventCard(
+                                event: event,
+                                onViewDetails: () {
+                                  context.push('/events/${event.id}');
+                                },
+                              );
                             },
                           ),
-                          SizedBox(height: 16.h),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
+                  ),
           ),
         ],
       ),
@@ -160,56 +243,86 @@ class _AllEventsViewState extends State<AllEventsView> {
   }
 }
 
-class _EventData {
+class EventData {
   final String id;
-  final String imageAsset;
   final String title;
   final String location;
   final String dateText;
   final String timeText;
   final String joinedText;
-  final String difficultyLabel;
+  final String status;
+  final String reward;
 
-  const _EventData({
+  const EventData({
     required this.id,
-    required this.imageAsset,
     required this.title,
     required this.location,
     required this.dateText,
     required this.timeText,
     required this.joinedText,
-    required this.difficultyLabel,
+    required this.status,
+    required this.reward,
   });
+
+  factory EventData.fromJson(Map<String, dynamic> json) {
+    final title = (json['title'] ?? 'Vintage Event').toString();
+    final location = (json['location'] ?? (json['is_virtual'] == true ? 'Virtual Event' : 'Downtown District')).toString();
+    final startDate = (json['start_date'] ?? 'Upcoming').toString();
+    final endDate = (json['end_date'] ?? '').toString();
+    final startTime = (json['start_time'] ?? '').toString();
+    final endTime = (json['end_time'] ?? '').toString();
+
+    final dateText = (endDate.isNotEmpty && endDate != startDate)
+        ? '$startDate - $endDate'
+        : startDate;
+
+    final timeText = endTime.isNotEmpty
+        ? '$startTime - $endTime'
+        : (startTime.isNotEmpty ? startTime : 'All Day');
+
+    final status = (json['status'] ?? json['event_type'] ?? 'Upcoming').toString();
+    final participants = json['participants_count'] ?? 15;
+
+    return EventData(
+      id: (json['id'] ?? '').toString(),
+      title: title,
+      location: location,
+      dateText: dateText,
+      timeText: timeText,
+      joinedText: '$participants registered',
+      status: status,
+      reward: '${json['reward_points'] ?? 500} pts + Badge',
+    );
+  }
 }
 
 class EventCard extends StatelessWidget {
-  final String imageAsset;
-  final String title;
-  final String location;
-  final String dateText;
-  final String timeText;
-  final String joinedText;
-  final String difficultyLabel;
+  final EventData event;
   final VoidCallback onViewDetails;
 
   const EventCard({
     super.key,
-    required this.imageAsset,
-    required this.title,
-    required this.location,
-    required this.dateText,
-    required this.timeText,
-    required this.joinedText,
-    required this.difficultyLabel,
+    required this.event,
     required this.onViewDetails,
   });
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'ongoing':
+        return const Color(0xFF16A34A);
+      case 'past':
+        return AppColors.greyText;
+      default:
+        return const Color(0xFFC65A46);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28.r),
+        borderRadius: BorderRadius.circular(22.r),
         border: Border.all(color: const Color(0xFFE8E1D6)),
         boxShadow: [
           BoxShadow(
@@ -221,89 +334,101 @@ class EventCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          Stack(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(28.r),
-                  topRight: Radius.circular(28.r),
-                ),
-                child: Image.asset(
-                  imageAsset,
-                  height: 170.h,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ],
+          ClipRRect(
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(22.r),
+              topRight: Radius.circular(22.r),
+            ),
+            child: Image.asset(
+              AppImages.exploreBanner,
+              height: 150.h,
+              width: double.infinity,
+              fit: BoxFit.cover,
+            ),
           ),
           Padding(
-            padding: EdgeInsets.fromLTRB(18.w, 16.h, 18.w, 18.h),
+            padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 16.h),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: TextStyles.semiBoldMedium.copyWith(
-                    color: AppColors.lightText,
-                    fontSize: 17.sp,
-                  ),
-                ),
-                SizedBox(height: 12.h),
-                _svgDataRow('assets/icons/location_icon.svg', location),
-                SizedBox(height: 10.h),
-                _svgDataRow('assets/icons/admin_nav_events.svg', dateText),
-                SizedBox(height: 10.h),
-                _iconDataRow(Icons.access_time, timeText),
-                SizedBox(height: 12.h),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _svgDataRow('assets/icons/participant_icon.svg', joinedText),
-                    _difficultyBadge(difficultyLabel),
-                  ],
-                ),
-                SizedBox(height: 14.h),
-                Container(
-                  height: 8.h,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8D4C4),
-                    borderRadius: BorderRadius.circular(4.r),
-                  ),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: FractionallySizedBox(
-                      widthFactor: 0.47,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFA0663C),
-                          borderRadius: BorderRadius.circular(4.r),
+                    Expanded(
+                      child: Text(
+                        event.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyles.boldMedium.copyWith(
+                          color: AppColors.gradientColor1,
+                          fontSize: 18.sp,
                         ),
                       ),
                     ),
-                  ),
+                    SizedBox(width: 8.w),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+                      decoration: BoxDecoration(
+                        color: _getStatusColor(event.status).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8.r),
+                        border: Border.all(
+                          color: _getStatusColor(event.status).withValues(alpha: 0.30),
+                        ),
+                      ),
+                      child: Text(
+                        event.status,
+                        style: TextStyles.semiBoldSmall.copyWith(
+                          color: _getStatusColor(event.status),
+                          fontSize: 12.sp,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12.h),
+                _rowItem(
+                  icon: Icons.location_on_outlined,
+                  text: event.location,
+                ),
+                SizedBox(height: 8.h),
+                _rowItem(
+                  icon: Icons.calendar_month_outlined,
+                  text: event.dateText,
+                ),
+                SizedBox(height: 8.h),
+                _rowItem(
+                  icon: Icons.access_time,
+                  text: event.timeText,
+                ),
+                SizedBox(height: 8.h),
+                _rowItem(
+                  icon: Icons.people_outline_rounded,
+                  text: event.joinedText,
+                ),
+                SizedBox(height: 14.h),
+                Container(
+                  height: 1,
+                  color: AppColors.eventTabBorder,
                 ),
                 SizedBox(height: 12.h),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           Icons.emoji_events_outlined,
                           color: const Color(0xFFC65A46),
                           size: 20.sp,
                         ),
-                        SizedBox(width: 8.w),
+                        SizedBox(width: 6.w),
                         Text(
-                          '500 pts + Rare Badge',
+                          event.reward,
                           style: TextStyles.mediumMedium.copyWith(
                             color: const Color(0xFFC65A46),
-                            fontSize: 14.sp,
+                            fontSize: 13.sp,
                           ),
                         ),
                       ],
@@ -311,13 +436,13 @@ class EventCard extends StatelessWidget {
                     CustomButton(
                       onTap: onViewDetails,
                       btnText: 'View Details',
-                      height: 40.h,
+                      height: 38.h,
                       btnColor: const Color(0xFFC65A46),
                       textStyle: TextStyles.mediumMedium.copyWith(
                         color: AppColors.bodyBg,
-                        fontSize: 14.sp,
+                        fontSize: 13.sp,
                       ),
-                      width: 145.w,
+                      width: 125.w,
                       borderRadius: 10.r,
                     ),
                   ],
@@ -329,73 +454,29 @@ class EventCard extends StatelessWidget {
       ),
     );
   }
-}
 
-Widget _svgDataRow(String svgPath, String text) {
-  return Row(
-    crossAxisAlignment: CrossAxisAlignment.center,
-    mainAxisAlignment: MainAxisAlignment.start,
-    children: [
-      SvgPicture.asset(
-        svgPath,
-        width: 18.w,
-        height: 18.h,
-        colorFilter: const ColorFilter.mode(
-          Color(0xFFC85D45),
-          BlendMode.srcIn,
+  Widget _rowItem({required IconData icon, required String text}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(
+          icon,
+          color: const Color(0xFFC85D45),
+          size: 16.sp,
         ),
-      ),
-      SizedBox(width: 10.w),
-      Text(
-        text,
-        style: TextStyles.regularSmall.copyWith(
-          color: const Color(0xFF7A8995),
-          fontSize: 14.sp,
+        SizedBox(width: 8.w),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyles.regularSmall.copyWith(
+              color: const Color(0xFF7A8995),
+              fontSize: 13.sp,
+            ),
+          ),
         ),
-      ),
-    ],
-  );
+      ],
+    );
+  }
 }
-
-Widget _iconDataRow(IconData icon, String text) {
-  return Row(
-    crossAxisAlignment: CrossAxisAlignment.center,
-    mainAxisAlignment: MainAxisAlignment.start,
-    children: [
-      Icon(
-        icon,
-        color: const Color(0xFFC85D45),
-        size: 18.sp,
-      ),
-      SizedBox(width: 10.w),
-      Text(
-        text,
-        style: TextStyles.regularSmall.copyWith(
-          color: const Color(0xFF7A8995),
-          fontSize: 14.sp,
-        ),
-      ),
-    ],
-  );
-}
-
-Widget _difficultyBadge(String difficulty) {
-  return Container(
-    padding: EdgeInsets.symmetric(
-      horizontal: 12.w,
-      vertical: 6.h,
-    ),
-    decoration: BoxDecoration(
-      color: const Color(0xFFC65A46),
-      borderRadius: BorderRadius.circular(8.r),
-    ),
-    child: Text(
-      difficulty,
-      style: TextStyles.mediumSmall.copyWith(
-        color: Colors.white,
-        fontSize: 12.sp,
-      ),
-    ),
-  );
-}
-

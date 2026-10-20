@@ -15,9 +15,24 @@ npm run emulators
 
 ### 2. Start Python FastAPI Backend
 Runs the Python backend connected to the local Firebase Emulators:
+
+**Using npm:**
 ```bash
 npm run backend:dev
 ```
+
+**Using Python command directly (from root):**
+```bash
+backend/.venv/bin/python -m uvicorn app.main:app --reload --port 8000 --app-dir backend
+```
+
+**Using Python command (inside `backend/` directory or with venv activated):**
+```bash
+cd backend
+source .venv/bin/activate
+python -m uvicorn app.main:app --reload --port 8000
+```
+
 > **Backend API Docs (Swagger)**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)  
 > **Health Check Endpoint**: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
 
@@ -65,7 +80,9 @@ npm run seed:admin
 | Purpose | Command |
 |---|---|
 | **Activate virtual environment** | `source backend/.venv/bin/activate` |
-| **Run backend server (reload mode)** | `npm run backend:dev` |
+| **Run backend server (npm)** | `npm run backend:dev` |
+| **Run backend server (Python module from root)** | `backend/.venv/bin/python -m uvicorn app.main:app --reload --port 8000 --app-dir backend` |
+| **Run backend server (Python module with active venv)** | `python -m uvicorn app.main:app --reload --port 8000` |
 | **Run backend server via uvicorn directly** | `backend/.venv/bin/uvicorn app.main:app --reload --port 8000` |
 | **Install new python package** | `backend/.venv/bin/pip install <package_name>` |
 | **Freeze dependencies** | `backend/.venv/bin/pip freeze > backend/requirements.txt` |

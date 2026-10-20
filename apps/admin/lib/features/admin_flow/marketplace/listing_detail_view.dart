@@ -211,13 +211,11 @@ class _Tag extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  final IconData? icon;
   final String? svgPath;
   final String label;
   final String value;
 
   const _InfoRow({
-    this.icon,
     this.svgPath,
     required this.label,
     required this.value,
@@ -227,18 +225,18 @@ class _InfoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        svgPath != null
-            ? SvgPicture.asset(
-                svgPath!,
-                width: 16.sp,
-                height: 16.sp,
-                colorFilter: const ColorFilter.mode(
-                  Color(0xFF6B7280),
-                  BlendMode.srcIn,
-                ),
-              )
-            : Icon(icon, size: 16.sp, color: const Color(0xFF6B7280)),
-        SizedBox(width: 8.w),
+        if (svgPath != null) ...[
+          SvgPicture.asset(
+            svgPath!,
+            width: 16.sp,
+            height: 16.sp,
+            colorFilter: const ColorFilter.mode(
+              Color(0xFF6B7280),
+              BlendMode.srcIn,
+            ),
+          ),
+          SizedBox(width: 8.w),
+        ],
         Text(
           label,
           style: TextStyles.regularSmall.copyWith(

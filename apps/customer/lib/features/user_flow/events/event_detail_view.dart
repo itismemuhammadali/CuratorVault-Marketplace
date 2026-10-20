@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:vintage_app/core/components/global_header/transparent_header.dart';
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
+import 'package:vintage_app/core/services/api_service.dart';
 import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/images.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
@@ -16,8 +18,34 @@ class EventDetailView extends StatefulWidget {
 }
 
 class _EventDetailViewState extends State<EventDetailView> {
+  bool _isLoading = true;
   bool _isRegistered = false;
   OverlayEntry? _toastOverlay;
+
+  Map<String, dynamic>? _eventData;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEventDetails();
+  }
+
+  Future<void> _loadEventDetails() async {
+    try {
+      final res = await ApiService.get('/api/v1/events/${widget.eventId}');
+      if (res is Map && res.containsKey('event') && res['event'] is Map) {
+        setState(() {
+          _eventData = Map<String, dynamic>.from(res['event']);
+          _isLoading = false;
+        });
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      debugPrint('Error loading event detail: $e');
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -128,6 +156,45 @@ class _EventDetailViewState extends State<EventDetailView> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppColors.bodyBg,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.darkText),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ),
+        body: Center(
+          child: JumpingDotsProgress(
+            text: 'Loading Event',
+            textStyle: TextStyles.semiBoldMedium.copyWith(
+              color: AppColors.lightText,
+            ),
+            dotColor: AppColors.gradientColor1,
+          ),
+        ),
+      );
+    }
+
+    final title = (_eventData?['title'] ?? 'Downtown AR Treasure Hunt').toString();
+    final startDate = (_eventData?['start_date'] ?? 'Feb 5, 2026').toString();
+    final endDate = (_eventData?['end_date'] ?? '').toString();
+    final dateDisplay = endDate.isNotEmpty && endDate != startDate
+        ? '$startDate - $endDate'
+        : startDate;
+    final startTime = (_eventData?['start_time'] ?? '2:00 PM').toString();
+    final endTime = (_eventData?['end_time'] ?? '6:00 PM').toString();
+    final timeDisplay = '$startTime - $endTime';
+    final location = (_eventData?['location'] ??
+            (_eventData?['is_virtual'] == true ? 'Virtual Event' : 'Downtown Historic District'))
+        .toString();
+    final description = (_eventData?['description'] ??
+            'Explore the historic downtown area and discover hidden antique treasures using AR technology. This immersive experience combines cutting-edge augmented reality with the thrill of treasure hunting.')
+        .toString();
+
     final registeredCount = _isRegistered ? 48 : 47;
     final spotsLeft = 100 - registeredCount;
     final progress = registeredCount / 100;
@@ -152,7 +219,7 @@ class _EventDetailViewState extends State<EventDetailView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Downtown AR Treasure Hunt',
+                        title,
                         style: TextStyles.boldLarge.copyWith(
                           color: AppColors.gradientColor1,
                           fontSize: 24.sp,
@@ -192,24 +259,24 @@ class _EventDetailViewState extends State<EventDetailView> {
                           ),
                         ),
                       ],
-                      SizedBox(height: 4.h),
+                      SizedBox(height: 14.h),
                       Column(
                         children: [
                           Row(
                             children: [
                               Expanded(
-                                child: const _InfoTile(
+                                child: _InfoTile(
                                   icon: Icons.calendar_today_outlined,
                                   label: 'Date',
-                                  value: 'Feb 5, 2026',
+                                  value: dateDisplay,
                                 ),
                               ),
                               SizedBox(width: 12.w),
                               Expanded(
-                                child: const _InfoTile(
+                                child: _InfoTile(
                                   icon: Icons.access_time_rounded,
                                   label: 'Time',
-                                  value: '2:00 PM - 6:00 PM',
+                                  value: timeDisplay,
                                 ),
                               ),
                             ],
@@ -218,10 +285,10 @@ class _EventDetailViewState extends State<EventDetailView> {
                           Row(
                             children: [
                               Expanded(
-                                child: const _InfoTile(
+                                child: _InfoTile(
                                   svgIcon: 'assets/icons/location_icon.svg',
                                   label: 'Location',
-                                  value: 'Downtown Historic\nDistrict',
+                                  value: location,
                                 ),
                               ),
                               SizedBox(width: 12.w),
@@ -243,10 +310,14 @@ class _EventDetailViewState extends State<EventDetailView> {
                         progress: progress,
                       ),
                       SizedBox(height: 14.h),
-                      const _ContentCard(
+                      _ContentCard(
                         title: 'About This Event',
                         child: Text(
-                          'Explore the historic downtown area and discover hidden antique treasures using AR technology. This immersive experience combines cutting-edge augmented reality with the thrill of treasure hunting.',
+                          description,
+                          style: TextStyles.regularSmall.copyWith(
+                            color: AppColors.lightText,
+                            height: 1.4,
+                          ),
                         ),
                       ),
                       SizedBox(height: 14.h),
@@ -255,7 +326,7 @@ class _EventDetailViewState extends State<EventDetailView> {
                         child: Column(
                           children: const [
                             _HighlightRow(
-                              text: '10+ AR checkpoints throughout downtown',
+                              text: '10+ AR checkpoints throughout district',
                             ),
                             _HighlightRow(
                               text: 'Real antique items to discover',
@@ -328,37 +399,33 @@ class _EventDetailViewState extends State<EventDetailView> {
                           SizedBox(width: 10.w),
                           Text(
                             "You're registered for this event!",
-                            style: TextStyles.mediumMedium.copyWith(
+                            style: TextStyles.semiBoldMedium.copyWith(
                               color: AppColors.bodyBg,
+                              fontSize: 16.sp,
                             ),
                           ),
                         ],
                       ),
                     )
-                  : GestureDetector(
-                      onTap: _register,
-                      child: Container(
-                        height: 52.h,
-                        decoration: BoxDecoration(
-                          color: AppColors.redButton,
-                          borderRadius: BorderRadius.circular(16.r),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.shadowColor.withValues(
-                                alpha: 0.16,
-                              ),
-                              blurRadius: 18,
-                              spreadRadius: -10,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
+                  : SizedBox(
+                      height: 52.h,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.redButton,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16.r),
+                          ),
+                          elevation: 6,
+                          shadowColor: AppColors.shadowColor.withValues(
+                            alpha: 0.22,
+                          ),
                         ),
-                        child: Center(
-                          child: Text(
-                            'Register for Event',
-                            style: TextStyles.semiBoldMedium.copyWith(
-                              color: AppColors.bodyBg,
-                            ),
+                        onPressed: _register,
+                        child: Text(
+                          'Register for Event',
+                          style: TextStyles.boldMedium.copyWith(
+                            color: AppColors.bodyBg,
+                            fontSize: 16.sp,
                           ),
                         ),
                       ),
@@ -372,107 +439,123 @@ class _EventDetailViewState extends State<EventDetailView> {
 }
 
 class _EventHero extends StatelessWidget {
-  const _EventHero();
-
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 320.h,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(30.r),
-          bottomRight: Radius.circular(30.r),
+    return Stack(
+      children: [
+        SizedBox(
+          height: 310.h,
+          width: double.infinity,
+          child: Image.asset(
+            AppImages.exploreBanner,
+            fit: BoxFit.cover,
+          ),
         ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Image.asset(AppImages.exploreBanner, fit: BoxFit.cover),
-          Container(color: AppColors.gradientColor1.withValues(alpha: 0.30)),
-          Positioned(
-            left: 18.w,
-            bottom: 16.h,
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-              decoration: BoxDecoration(
-                color: AppColors.redButton,
-                borderRadius: BorderRadius.circular(8.r),
-              ),
-              child: Text(
-                'Medium',
-                style: TextStyles.regularSmall.copyWith(
-                  color: AppColors.bodyBg,
-                ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Container(
+            height: 90.h,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  AppColors.bodyBg.withValues(alpha: 0.90),
+                  AppColors.bodyBg,
+                ],
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
 class _InfoTile extends StatelessWidget {
   final IconData? icon;
+  final String? svgIcon;
   final String label;
   final String value;
-  final String? svgIcon;
 
   const _InfoTile({
     this.icon,
+    this.svgIcon,
     required this.label,
     required this.value,
-    this.svgIcon,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 12.h),
+      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
       decoration: BoxDecoration(
         color: AppColors.bodyBg,
-        borderRadius: BorderRadius.circular(18.r),
+        borderRadius: BorderRadius.circular(16.r),
         border: Border.all(
-          color: AppColors.lightText.withValues(alpha: 0.12),
-          width: 1,
+          color: AppColors.shadowColor.withValues(alpha: 0.08),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadowColor.withValues(alpha: 0.06),
+            blurRadius: 16,
+            spreadRadius: -10,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null)
-                Icon(icon, color: AppColors.redButton, size: 19.sp)
-              else if (svgIcon != null)
-                SvgPicture.asset(
-                  svgIcon!,
-                  width: 18.w,
-                  height: 18.h,
-                  colorFilter: const ColorFilter.mode(
-                    Color(0xFFC85D45),
-                    BlendMode.srcIn,
+          Container(
+            height: 36.w,
+            width: 36.w,
+            decoration: BoxDecoration(
+              color: AppColors.redButton.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+            child: Center(
+              child: svgIcon != null
+                  ? SvgPicture.asset(
+                      svgIcon!,
+                      width: 18.w,
+                      height: 18.h,
+                      colorFilter: const ColorFilter.mode(
+                        AppColors.redButton,
+                        BlendMode.srcIn,
+                      ),
+                    )
+                  : Icon(
+                      icon,
+                      color: AppColors.redButton,
+                      size: 18.sp,
+                    ),
+            ),
+          ),
+          SizedBox(width: 10.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyles.regularExtraSmall.copyWith(
+                    color: AppColors.darkText,
+                    fontSize: 12.sp,
                   ),
                 ),
-              SizedBox(width: 8.w),
-              Text(
-                label,
-                style: TextStyles.regularSmall.copyWith(
-                  color: AppColors.greyText,
+                SizedBox(height: 2.h),
+                Text(
+                  value,
+                  style: TextStyles.semiBoldSmall.copyWith(
+                    color: AppColors.gradientColor1,
+                    fontSize: 13.sp,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          SizedBox(height: 10.h),
-          Text(
-            value,
-            style: TextStyles.mediumMedium.copyWith(
-              color: AppColors.gradientColor1,
-              height: 1.3,
+              ],
             ),
           ),
         ],
@@ -495,35 +578,33 @@ class _ParticipationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 14.h),
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
       decoration: BoxDecoration(
         color: AppColors.bodyBg,
-        borderRadius: BorderRadius.circular(18.r),
+        borderRadius: BorderRadius.circular(16.r),
         border: Border.all(
-          color: AppColors.lightText.withValues(alpha: 0.12),
-          width: 1,
+          color: AppColors.shadowColor.withValues(alpha: 0.08),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadowColor.withValues(alpha: 0.06),
+            blurRadius: 16,
+            spreadRadius: -10,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              SvgPicture.asset(
-                'assets/icons/participant_icon.svg',
-                width: 18.w,
-                height: 18.h,
-                colorFilter: const ColorFilter.mode(
-                  Color(0xFFC85D45),
-                  BlendMode.srcIn,
-                ),
-              ),
-              SizedBox(width: 8.w),
-              Expanded(
-                child: Text(
-                  '$registeredCount / 100 registered',
-                  style: TextStyles.mediumMedium.copyWith(
-                    color: AppColors.gradientColor1,
-                  ),
+              Text(
+                'Participation',
+                style: TextStyles.boldMedium.copyWith(
+                  color: AppColors.gradientColor1,
+                  fontSize: 16.sp,
                 ),
               ),
               Text(
@@ -534,23 +615,33 @@ class _ParticipationCard extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: 14.h),
+          SizedBox(height: 10.h),
           ClipRRect(
-            borderRadius: BorderRadius.circular(999.r),
-            child: SizedBox(
-              height: 8.h,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Container(color: AppColors.darkText),
-                  FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: progress.clamp(0.0, 1.0),
-                    child: Container(color: AppColors.redButton),
-                  ),
-                ],
-              ),
+            borderRadius: BorderRadius.circular(8.r),
+            child: LinearProgressIndicator(
+              value: progress.clamp(0.0, 1.0),
+              minHeight: 8.h,
+              backgroundColor: const Color(0xFFF1EAE2),
+              valueColor: const AlwaysStoppedAnimation(AppColors.redButton),
             ),
+          ),
+          SizedBox(height: 8.h),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '$registeredCount registered',
+                style: TextStyles.regularSmall.copyWith(
+                  color: AppColors.darkText,
+                ),
+              ),
+              Text(
+                '100 max',
+                style: TextStyles.regularSmall.copyWith(
+                  color: AppColors.darkText,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -560,27 +651,33 @@ class _ParticipationCard extends StatelessWidget {
 
 class _ContentCard extends StatelessWidget {
   final String title;
-  final Widget child;
   final IconData? titleIcon;
+  final Widget child;
 
   const _ContentCard({
     required this.title,
-    required this.child,
     this.titleIcon,
+    required this.child,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 16.h),
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
       decoration: BoxDecoration(
         color: AppColors.bodyBg,
-        borderRadius: BorderRadius.circular(18.r),
+        borderRadius: BorderRadius.circular(16.r),
         border: Border.all(
-          color: AppColors.lightText.withValues(alpha: 0.12),
-          width: 1,
+          color: AppColors.shadowColor.withValues(alpha: 0.08),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadowColor.withValues(alpha: 0.06),
+            blurRadius: 16,
+            spreadRadius: -10,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -593,21 +690,15 @@ class _ContentCard extends StatelessWidget {
               ],
               Text(
                 title,
-                style: TextStyles.boldLarge.copyWith(
+                style: TextStyles.boldMedium.copyWith(
                   color: AppColors.gradientColor1,
-                  fontSize: 18.sp,
+                  fontSize: 16.sp,
                 ),
               ),
             ],
           ),
-          SizedBox(height: 14.h),
-          DefaultTextStyle(
-            style: TextStyles.regularMedium.copyWith(
-              color: AppColors.lightText,
-              height: 1.7,
-            ),
-            child: child,
-          ),
+          SizedBox(height: 10.h),
+          child,
         ],
       ),
     );
@@ -622,20 +713,23 @@ class _HighlightRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 10.h),
+      padding: EdgeInsets.only(bottom: 8.h),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            Icons.check_circle_outline_rounded,
+            Icons.check_circle_rounded,
             color: AppColors.redButton,
-            size: 18.sp,
+            size: 16.sp,
           ),
           SizedBox(width: 8.w),
           Expanded(
             child: Text(
               text,
-              style: TextStyle(height: 1.5),
+              style: TextStyles.regularSmall.copyWith(
+                color: AppColors.lightText,
+                height: 1.25,
+              ),
             ),
           ),
         ],
@@ -652,23 +746,24 @@ class _RequirementRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 10.h),
+      padding: EdgeInsets.only(bottom: 8.h),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 5.w,
-            height: 5.w,
+            height: 6.w,
+            width: 6.w,
             decoration: const BoxDecoration(
               color: AppColors.redButton,
               shape: BoxShape.circle,
             ),
           ),
-          SizedBox(width: 10.w),
+          SizedBox(width: 8.w),
           Expanded(
             child: Text(
               text,
-              style: TextStyle(height: 1.5),
+              style: TextStyles.regularSmall.copyWith(
+                color: AppColors.lightText,
+              ),
             ),
           ),
         ],
@@ -681,58 +776,54 @@ class _OrganizerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 16.h),
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
       decoration: BoxDecoration(
         color: AppColors.bodyBg,
-        borderRadius: BorderRadius.circular(18.r),
+        borderRadius: BorderRadius.circular(16.r),
         border: Border.all(
-          color: AppColors.lightText.withValues(alpha: 0.12),
-          width: 1,
+          color: AppColors.shadowColor.withValues(alpha: 0.08),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadowColor.withValues(alpha: 0.06),
+            blurRadius: 16,
+            spreadRadius: -10,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            'Organized By',
-            style: TextStyles.boldLarge.copyWith(
-              color: AppColors.gradientColor1,
-              fontSize: 18.sp,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12.r),
+            child: Image.asset(
+              AppImages.userImg,
+              height: 48.w,
+              width: 48.w,
+              fit: BoxFit.cover,
             ),
           ),
-          SizedBox(height: 14.h),
-          Row(
-            children: [
-              ClipOval(
-                child: Image.asset(
-                  AppImages.userImg,
-                  width: 44.w,
-                  height: 44.w,
-                  fit: BoxFit.cover,
+          SizedBox(width: 12.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Vintage Vibers Community',
+                  style: TextStyles.boldMedium.copyWith(
+                    color: AppColors.gradientColor1,
+                    fontSize: 15.sp,
+                  ),
                 ),
-              ),
-              SizedBox(width: 12.w),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Heritage Events Team',
-                    style: TextStyles.mediumLarge.copyWith(
-                      color: AppColors.gradientColor1,
-                      fontSize: 16.sp,
-                    ),
+                SizedBox(height: 2.h),
+                Text(
+                  'Official Event Organizer',
+                  style: TextStyles.regularExtraSmall.copyWith(
+                    color: AppColors.darkText,
                   ),
-                  SizedBox(height: 2.h),
-                  Text(
-                    'Event Organizer',
-                    style: TextStyles.regularSmall.copyWith(
-                      color: AppColors.greyText,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ],
       ),

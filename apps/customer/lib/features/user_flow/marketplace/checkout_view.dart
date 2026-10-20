@@ -1169,12 +1169,10 @@ class _StepState {
 class _MiniFeature extends StatelessWidget {
   const _MiniFeature({
     required this.label,
-    this.icon,
     this.iconPath,
   });
 
   final String label;
-  final IconData? icon;
   final String? iconPath;
 
   @override
@@ -1195,7 +1193,7 @@ class _MiniFeature extends StatelessWidget {
           )
         else
           Icon(
-            icon,
+            Icons.shield_outlined,
             size: 18.sp,
             color: AppColors.redButton,
           ),

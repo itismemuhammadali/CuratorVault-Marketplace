@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:go_router/go_router.dart';
 import 'package:vintage_app/core/components/global_header/global_header.dart';
 import 'package:vintage_app/core/components/global_header/header_config.dart';
 import 'package:vintage_app/core/components/icons/icon_box.dart';
 import 'package:vintage_app/core/components/includes/app_text_field.dart';
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
 import 'package:vintage_app/core/components/message_components/bottom_bar.dart';
+import 'package:vintage_app/core/services/items_service.dart';
 import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/images.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
 
 class SingleMessage extends StatefulWidget {
-  const SingleMessage({super.key});
+  final String? chatId;
+  final String? title;
+  const SingleMessage({super.key, this.chatId, this.title});
 
   @override
   State<SingleMessage> createState() => _SingleMessageState();
@@ -19,44 +24,52 @@ class SingleMessage extends StatefulWidget {
 class _SingleMessageState extends State<SingleMessage> {
   final TextEditingController messageBoxController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _messages = [];
 
-  // Simple chat data: mix of sent/received messages
-  final List<_ChatMessage> _messages = [
-    _ChatMessage(
-      text:
-          'Hello! Thank you for your interest in the Victorian Pocket Watch. How can I help you?',
-      time: '8:30 PM',
-      isSentByUser: false,
-    ),
-    _ChatMessage(
-      text:
-          "Hi! I'm curious about the movement condition and whether it has been serviced recently.",
-      time: '8:31 PM',
-      isSentByUser: true,
-    ),
-    _ChatMessage(
-      text:
-          'Great question! The movement was professionally serviced 3 months ago and is keeping excellent time.',
-      time: '8:32 PM',
-      isSentByUser: false,
-    ),
-    _ChatMessage(
-      text: 'Awesome. Are there any visible scratches on the case or crystal?',
-      time: '8:33 PM',
-      isSentByUser: true,
-    ),
-    _ChatMessage(
-      text:
-          'There are only minor hairline marks consistent with careful use—no deep scratches or chips.',
-      time: '8:34 PM',
-      isSentByUser: false,
-    ),
-    _ChatMessage(
-      text: 'Perfect, thank you for the details!',
-      time: '8:35 PM',
-      isSentByUser: true,
-    ),
-  ];
+  String get activeChatId => widget.chatId ?? 'chat_default';
+  String get activeTitle => widget.title ?? 'Heritage Antiques';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMessages();
+  }
+
+  Future<void> _loadMessages() async {
+    setState(() {
+      _isLoading = true;
+    });
+    final msgs = await ItemsService.getChatMessages(activeChatId);
+    if (mounted) {
+      setState(() {
+        _messages = msgs;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _handleSendMessage() async {
+    final text = messageBoxController.text.trim();
+    if (text.isEmpty) return;
+
+    messageBoxController.clear();
+    final newMsg = await ItemsService.sendMessage(activeChatId, text);
+    if (mounted) {
+      setState(() {
+        _messages.add(newMsg);
+      });
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -69,7 +82,7 @@ class _SingleMessageState extends State<SingleMessage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bodyBg,
-      appBar: SimpleHeader(config: _header()),
+      appBar: SimpleHeader(config: _header(context, activeTitle)),
       body: Stack(
         children: [
           Padding(
@@ -78,43 +91,48 @@ class _SingleMessageState extends State<SingleMessage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
+                  padding: EdgeInsets.only(bottom: 8.h),
                   decoration: BoxDecoration(
                     border: Border(
                       bottom: BorderSide(color: AppColors.grey, width: 1.0),
                     ),
                   ),
-                  child: Text.rich(
-                    TextSpan(
-                      text: 'Inquiring about:  ',
-                      style: TextStyles.regularSmall.copyWith(
-                        color: AppColors.greyText,
-                      ),
-                      children: [
-                        TextSpan(
-                          text: 'Victorian Pocket Watch',
-                          style: TextStyles.semiBoldSmall.copyWith(
-                            color: AppColors.lightText,
-                          ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.verified_outlined, size: 16.sp, color: AppColors.redButton),
+                      SizedBox(width: 6.w),
+                      Text(
+                        'Direct Authentication Inquiry Channel',
+                        style: TextStyles.regularSmall.copyWith(
+                          color: AppColors.greyText,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
                 SizedBox(height: 12.h),
                 Expanded(
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    reverse: true, // chat-style bottom-to-top growth
-                    padding: EdgeInsets.only(top: 8.h),
-                    itemCount: _messages.length,
-                    itemBuilder: (context, index) {
-                      final message = _messages[index];
-                      return Padding(
-                        padding: EdgeInsets.symmetric(vertical: 4.h),
-                        child: _MessageBubble(message: message),
-                      );
-                    },
-                  ),
+                  child: _isLoading
+                      ? const Center(child: JumpingDots(color: AppColors.redButton))
+                      : _messages.isEmpty
+                          ? Center(
+                              child: Text(
+                                'Say hello to start the conversation!',
+                                style: TextStyles.regularSmall.copyWith(color: AppColors.greyText),
+                              ),
+                            )
+                          : ListView.builder(
+                              controller: _scrollController,
+                              padding: EdgeInsets.only(top: 8.h),
+                              itemCount: _messages.length,
+                              itemBuilder: (context, index) {
+                                final message = _messages[index];
+                                return Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 4.h),
+                                  child: _MessageBubble(message: message),
+                                );
+                              },
+                            ),
                 ),
               ],
             ),
@@ -133,13 +151,21 @@ class _SingleMessageState extends State<SingleMessage> {
                     iconColor: AppColors.lightText,
                   ),
                   SizedBox(width: 6.w),
-                  IconBox(
-                    icon: AppImages.attachPinIcon,
-                    bgColor: AppColors.darkText.withValues(alpha: 0.20),
-                    height: 40.h,
-                    width: 40.w,
-                    borderRadius: 100.r,
-                    iconColor: AppColors.lightText,
+                  GestureDetector(
+                    onTap: _handleSendMessage,
+                    child: Container(
+                      height: 40.h,
+                      width: 40.w,
+                      decoration: const BoxDecoration(
+                        color: AppColors.redButton,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.send_rounded,
+                        color: Colors.white,
+                        size: 20.sp,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -149,6 +175,7 @@ class _SingleMessageState extends State<SingleMessage> {
                 borderColor: AppColors.grey,
                 focusedBorderColor: AppColors.redButton,
                 borderRadius: 16.r,
+                onFieldSubmitted: (_) => _handleSendMessage(),
                 contentPadding: EdgeInsets.symmetric(
                   horizontal: 12.w,
                   vertical: 14.h,
@@ -162,28 +189,18 @@ class _SingleMessageState extends State<SingleMessage> {
   }
 }
 
-class _ChatMessage {
-  final String text;
-  final String time;
-  final bool isSentByUser;
-
-  const _ChatMessage({
-    required this.text,
-    required this.time,
-    required this.isSentByUser,
-  });
-}
-
 class _MessageBubble extends StatelessWidget {
-  final _ChatMessage message;
+  final Map<String, dynamic> message;
 
   const _MessageBubble({required this.message});
 
   @override
   Widget build(BuildContext context) {
-    final isSent = message.isSentByUser;
+    final senderRole = message['senderRole'] ?? (message['isSentByUser'] == true ? 'customer' : 'dealer');
+    final isSent = senderRole == 'customer' || message['isSentByUser'] == true;
+    final text = message['text'] ?? '';
+    final time = message['time'] ?? 'Just now';
 
-    // Align right for sent, left for received
     final alignment = isSent ? Alignment.centerRight : Alignment.centerLeft;
     final borderRadius = BorderRadius.only(
       topLeft: Radius.circular(16.r),
@@ -192,9 +209,7 @@ class _MessageBubble extends StatelessWidget {
       bottomRight: Radius.circular(isSent ? 4.r : 16.r),
     );
 
-    final bg = isSent
-        ? AppColors.gradientColor1
-        : AppColors.bodyBg; // will use gradient for sent
+    final bg = isSent ? AppColors.gradientColor1 : Colors.white;
 
     return Align(
       alignment: alignment,
@@ -205,33 +220,30 @@ class _MessageBubble extends StatelessWidget {
           decoration: BoxDecoration(
             color: bg,
             borderRadius: borderRadius,
+            border: isSent ? null : Border.all(color: const Color(0xFFE5E7EB)),
             boxShadow: [
               BoxShadow(
-                color: AppColors.shadowColor.withValues(alpha: 0.10),
-                blurRadius: 10.r,
-                offset: Offset(0, 3.h),
+                color: AppColors.shadowColor.withValues(alpha: 0.08),
+                blurRadius: 8.r,
+                offset: Offset(0, 2.h),
               ),
             ],
           ),
           child: Column(
-            crossAxisAlignment: isSent
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
+            crossAxisAlignment: isSent ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                message.text,
+                text,
                 style: TextStyles.regularSmall.copyWith(
-                  color: isSent ? AppColors.bodyBg : AppColors.lightText,
+                  color: isSent ? Colors.white : AppColors.lightText,
                 ),
               ),
-              SizedBox(height: 6.h),
+              SizedBox(height: 4.h),
               Text(
-                message.time,
+                time,
                 style: TextStyles.regularExtraSmall.copyWith(
-                  color: isSent
-                      ? AppColors.bodyBg.withValues(alpha: 0.85)
-                      : AppColors.greyText,
+                  color: isSent ? Colors.white70 : AppColors.greyText,
                 ),
               ),
             ],
@@ -242,8 +254,23 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-HeaderConfig _header() {
+HeaderConfig _header(BuildContext context, String title) {
   return HeaderConfig(
+    leading: IconBox(
+      icon: AppImages.backIcon,
+      bgColor: const Color(0xFFF8E8C7).withValues(alpha: 0.20),
+      onTap: () {
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/user/chat');
+        }
+      },
+      iconColor: const Color(0xFFF8E8C7),
+      height: 40.h,
+      width: 40.w,
+      borderRadius: 100.r,
+    ),
     title: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -253,8 +280,8 @@ HeaderConfig _header() {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             SizedBox(
-              height: 47.h,
-              width: 47.w,
+              height: 40.h,
+              width: 40.w,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(100.r),
                 child: Image.asset(AppImages.userImg, fit: BoxFit.cover),
@@ -266,12 +293,12 @@ HeaderConfig _header() {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Heritage Antiques',
+                  title,
                   style: TextStyles.boldMedium.copyWith(color: AppColors.bodyBg),
                 ),
                 SizedBox(height: 2.h),
                 Text(
-                  'Usually responds in 1 hour',
+                  'Verified Antique Specialist',
                   style: TextStyles.regularSmall.copyWith(
                     color: AppColors.darkText,
                   ),
@@ -289,3 +316,4 @@ HeaderConfig _header() {
     height: 114.h,
   );
 }
+

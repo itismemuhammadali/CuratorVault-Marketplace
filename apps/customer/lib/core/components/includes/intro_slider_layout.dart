@@ -17,7 +17,6 @@ class IntroSliderLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
-    final topPadding = MediaQuery.of(context).padding.top;
     
     // Calculate responsive image size based on screen height
     final maxImageSize = (screenHeight * 0.45).clamp(200.0, 520.0);

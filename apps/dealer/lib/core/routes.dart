@@ -66,6 +66,7 @@ import 'package:vintage_app/features/dealer_flow/wallet/payment_methods_view.dar
 import 'package:vintage_app/features/dealer_flow/wallet/release_payment_view.dart';
 import 'package:vintage_app/features/dealer_flow/wallet/transaction_history_view.dart';
 import 'package:vintage_app/features/dealer_flow/wallet/withdraw_funds_view.dart';
+import 'package:vintage_app/features/notifications/notifications_view.dart';
 
 class Routes {
   static GoRouter routes = GoRouter(
@@ -526,6 +527,18 @@ class Routes {
         path: '/single_message',
         pageBuilder: (context, state) {
           return slidePage(state: state, child: SingleMessage());
+        },
+      ),
+      GoRoute(
+        path: '/dealer/notifications',
+        pageBuilder: (context, state) {
+          return slidePage(state: state, child: const DealerNotificationsView());
+        },
+      ),
+      GoRoute(
+        path: '/notifications',
+        pageBuilder: (context, state) {
+          return slidePage(state: state, child: const DealerNotificationsView());
         },
       ),
       GoRoute(

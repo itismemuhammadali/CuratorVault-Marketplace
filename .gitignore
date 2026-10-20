@@ -77,3 +77,9 @@ node_modules/
 .venv/
 **/__pycache__/
 *.pyc
+*.p8
+*.log
+emulator-data/
+builds/
+.env
+**/.env

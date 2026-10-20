@@ -8,6 +8,9 @@ import 'package:vintage_app/core/theme/images.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
 import 'package:vintage_app/features/auth_screens/layout.dart';
 
+import 'package:vintage_app/core/services/auth_service.dart';
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
+
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -17,6 +20,39 @@ class ForgotPasswordScreen extends StatefulWidget {
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final TextEditingController _emailController = TextEditingController();
+  bool _isLoading = false;
+  final AuthService _authService = AuthService();
+
+  Future<void> _handleReset() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your email address')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await _authService.sendPasswordResetEmail(email);
+      if (mounted) {
+        context.push('/checkEmail?email=${Uri.encodeComponent(email)}');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -105,17 +141,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ),
             SizedBox(height: 18.h),
             CustomButton(
-              onTap: () {
-                final email = _emailController.text.trim();
-                context.push('/checkEmail?email=${Uri.encodeComponent(email)}');
-              },
+              onTap: _isLoading ? () {} : () => _handleReset(),
               height: 52.h,
               borderRadius: 13.r,
               btnColor: AppColors.redButton,
-              btnText: 'Send Reset Link',
+              btnText: _isLoading ? null : 'Send Reset Link',
               textStyle: TextStyles.boldSmall.copyWith(
                 color: Colors.white,
               ),
+              child: _isLoading ? const JumpingDotsProgress() : null,
             ),
             SizedBox(height: 18.h),
             TextButton.icon(

@@ -14,7 +14,7 @@ class AuthService {
     required String password,
   }) async {
     return await _auth.signInWithEmailAndPassword(
-      email: email,
+      email: email.trim(),
       password: password,
     );
   }
@@ -22,26 +22,39 @@ class AuthService {
   Future<UserCredential> signUpDealer({
     required String email,
     required String password,
-    required String storeName,
-    required String ownerName,
+    String storeName = 'Vintage Antique Store',
+    String ownerName = 'Dealer',
+    String phone = '',
   }) async {
     final credential = await _auth.createUserWithEmailAndPassword(
-      email: email,
+      email: email.trim(),
       password: password,
     );
 
     if (credential.user != null) {
-      await _firestore.collection('dealers').doc(credential.user!.uid).set({
-        'uid': credential.user!.uid,
-        'email': email,
+      final uid = credential.user!.uid;
+      await _firestore.collection('dealers').doc(uid).set({
+        'uid': uid,
+        'email': email.trim(),
         'storeName': storeName,
         'ownerName': ownerName,
+        'phone': phone,
         'role': 'dealer',
+        'isVerified': true,
+        'rating': 4.9,
+        'salesCount': 0,
+        'balance': 0.0,
         'createdAt': FieldValue.serverTimestamp(),
-      });
+      }, SetOptions(merge: true));
+
+      await credential.user!.updateDisplayName(ownerName);
     }
 
     return credential;
+  }
+
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _auth.sendPasswordResetEmail(email: email.trim());
   }
 
   Future<void> signOut() async {

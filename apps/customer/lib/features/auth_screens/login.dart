@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vintage_app/core/components/includes/auth_tabs.dart';
 import 'package:vintage_app/core/components/includes/app_text_field.dart';
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
+import 'package:vintage_app/core/services/auth_service.dart';
 import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/buttons/custom_button.dart';
 import 'package:vintage_app/core/theme/images.dart';
@@ -18,9 +21,12 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final AuthService _authService = AuthService();
+
   int _selectedTabIndex = 0;
   bool _rememberMe = false;
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
@@ -38,6 +44,128 @@ class _LoginScreenState extends State<LoginScreen> {
     _phoneController.dispose();
     _licenseController.dispose();
     super.dispose();
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.redButton,
+      ),
+    );
+  }
+
+  void _showSuccess(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  String _mapAuthError(dynamic error) {
+    if (error is FirebaseAuthException) {
+      switch (error.code) {
+        case 'user-not-found':
+          return 'No user found with this email address.';
+        case 'wrong-password':
+        case 'invalid-credential':
+          return 'Incorrect email or password. Please try again.';
+        case 'email-already-in-use':
+          return 'An account already exists with this email.';
+        case 'invalid-email':
+          return 'Please enter a valid email address.';
+        case 'weak-password':
+          return 'Password is too weak. Please use at least 6 characters.';
+        case 'network-request-failed':
+          return 'Network error. Please check your emulator or connection.';
+        default:
+          return error.message ?? 'Authentication failed. Please try again.';
+      }
+    }
+    return error.toString();
+  }
+
+  Future<void> _handleAuth() async {
+    final bool isRegister = _selectedTabIndex == 1;
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty) {
+      _showError('Please enter your email address');
+      return;
+    }
+
+    if (password.isEmpty) {
+      _showError('Please enter your password');
+      return;
+    }
+
+    if (isRegister) {
+      final firstName = _firstNameController.text.trim();
+      final lastName = _lastNameController.text.trim();
+
+      if (firstName.isEmpty) {
+        _showError('Please enter your first name');
+        return;
+      }
+      if (lastName.isEmpty) {
+        _showError('Please enter your last name');
+        return;
+      }
+      if (password.length < 6) {
+        _showError('Password must be at least 6 characters');
+        return;
+      }
+
+      setState(() => _isLoading = true);
+
+      try {
+        await _authService.signUpCustomer(
+          email: email,
+          password: password,
+          firstName: firstName,
+          lastName: lastName,
+          phone: _phoneController.text.trim(),
+          license: _licenseController.text.trim(),
+        );
+
+        if (mounted) {
+          _showSuccess('Account created successfully!');
+          context.go('/homeScreen');
+        }
+      } catch (e) {
+        _showError(_mapAuthError(e));
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
+    } else {
+      // Sign In Flow
+      setState(() => _isLoading = true);
+
+      try {
+        await _authService.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+
+        if (mounted) {
+          _showSuccess('Signed in successfully!');
+          context.go('/homeScreen');
+        }
+      } catch (e) {
+        _showError(_mapAuthError(e));
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
+    }
   }
 
   Widget _dividerOrContinue() {
@@ -249,7 +377,18 @@ class _LoginScreenState extends State<LoginScreen> {
           controller: _passwordController,
           hintText: 'Password',
           prefix: _fieldImage(AppImages.iconLock),
-          obscureText: true,
+          obscureText: _obscurePassword,
+          suffix: IconButton(
+            onPressed: () =>
+                setState(() => _obscurePassword = !_obscurePassword),
+            icon: Icon(
+              _obscurePassword
+                  ? Icons.visibility_outlined
+                  : Icons.visibility_off_outlined,
+              size: 18.sp,
+              color: AppColors.greyText,
+            ),
+          ),
         ),
         SizedBox(height: 12.h),
         AppTextField(
@@ -287,17 +426,25 @@ class _LoginScreenState extends State<LoginScreen> {
             if (isRegister) _registerFields() else _loginFields(),
             SizedBox(height: 14.h),
             CustomButton(
-              onTap: () {
-                context.go(isRegister ? '/homeScreen' : '/homeScreen');
-              },
+              onTap: _isLoading ? () {} : _handleAuth,
               height: 48.h,
               borderRadius: 8.r,
-              btnText: isRegister ? 'Sign up' : 'Login',
+              btnText: _isLoading ? '' : (isRegister ? 'Sign up' : 'Login'),
               btnColor: AppColors.redButton,
               textStyle: TextStyles.boldSmall.copyWith(
                 fontSize: 14.sp,
                 color: Colors.white,
               ),
+              child: _isLoading
+                  ? JumpingDotsProgress(
+                      text: isRegister ? 'Creating Account' : 'Signing In',
+                      textStyle: TextStyles.boldSmall.copyWith(
+                        fontSize: 14.sp,
+                        color: Colors.white,
+                      ),
+                      dotColor: Colors.white,
+                    )
+                  : null,
             ),
             SizedBox(height: 16.h),
             _dividerOrContinue(),

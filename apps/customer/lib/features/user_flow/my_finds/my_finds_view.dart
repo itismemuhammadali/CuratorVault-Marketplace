@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:vintage_app/core/components/global_header/header_config.dart';
 import 'package:vintage_app/core/components/global_header/header_controller_provider.dart';
 import 'package:vintage_app/core/components/includes/horizontal_chip_bar.dart';
+import 'package:vintage_app/core/components/includes/jumping_dots.dart';
+import 'package:vintage_app/core/services/items_service.dart';
 import 'package:vintage_app/core/theme/app_colors.dart';
 import 'package:vintage_app/core/theme/images.dart';
 import 'package:vintage_app/core/theme/text_styles.dart';
@@ -18,53 +20,40 @@ class MyFindsView extends StatefulWidget {
 
 class _MyFindsViewState extends State<MyFindsView> {
   int _selectedFilterIndex = 0;
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _finds = [];
 
   final List<String> filters = const [
     'All Items',
+    'Furniture',
     'Horology',
     'Pottery',
     'Jewelry',
-    'Photography',
   ];
 
-  final List<_InventoryItem> _items = const [
-    _InventoryItem(
-      id: '1',
-      title: 'Victorian Mahogany Chair',
-      price: '\$1,200 - \$1,800',
-      views: '124',
-      status: 'Live',
-      statusColor: Color(0xFF19D36B),
-      image: AppImages.productOne,
-    ),
-    _InventoryItem(
-      id: '2',
-      title: 'Antique Oak Cabinet',
-      price: '\$1,200 - \$1,800',
-      views: '89',
-      status: 'Live',
-      statusColor: Color(0xFF19D36B),
-      image: AppImages.productFour,
-    ),
-    _InventoryItem(
-      id: '3',
-      title: 'Porcelain Vase Collection',
-      price: '\$1,200 - \$1,800',
-      views: '156',
-      status: 'Sold',
-      statusColor: Color(0xFF1F2937),
-      image: AppImages.productThree,
-    ),
-    _InventoryItem(
-      id: '4',
-      title: 'Vintage Pocket Watch',
-      price: '\$1,200 - \$1,800',
-      views: '0',
-      status: 'Draft',
-      statusColor: Color(0xFFB56C3A),
-      image: AppImages.productFive,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadFinds();
+  }
+
+  Future<void> _loadFinds() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    final selectedCategory = filters[_selectedFilterIndex];
+    final items = await ItemsService.getMyFinds(
+      category: selectedCategory == 'All Items' ? null : selectedCategory,
+    );
+
+    if (mounted) {
+      setState(() {
+        _finds = items;
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -117,6 +106,7 @@ class _MyFindsViewState extends State<MyFindsView> {
             setState(() {
               _selectedFilterIndex = index;
             });
+            _loadFinds();
           },
         ),
         height: 175.h,
@@ -126,51 +116,63 @@ class _MyFindsViewState extends State<MyFindsView> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Container(
+        color: AppColors.subPageBg,
+        child: const Center(
+          child: JumpingDots(color: AppColors.redButton),
+        ),
+      );
+    }
+
+    if (_finds.isEmpty) {
+      return Container(
+        color: AppColors.subPageBg,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.inventory_2_outlined, size: 54.sp, color: Colors.grey),
+              SizedBox(height: 12.h),
+              Text(
+                'No items found in this category',
+                style: TextStyles.mediumSmall.copyWith(color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Container(
       color: AppColors.subPageBg,
-      child: GridView.builder(
-        padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 18.h),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 14.w,
-          mainAxisSpacing: 14.h,
-          childAspectRatio: 0.75,
+      child: RefreshIndicator(
+        onRefresh: _loadFinds,
+        color: AppColors.redButton,
+        child: GridView.builder(
+          padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 18.h),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 14.w,
+            mainAxisSpacing: 14.h,
+            childAspectRatio: 0.75,
+          ),
+          itemCount: _finds.length,
+          itemBuilder: (context, index) {
+            final item = _finds[index];
+            return _CollectionCard(
+              item: item,
+              onTap: () => context.push('/market/product/${item['id']}'),
+            );
+          },
         ),
-        itemCount: _items.length,
-        itemBuilder: (context, index) {
-          final item = _items[index];
-          return _CollectionCard(
-            item: item,
-            onTap: () => context.push('/market/product/${item.id}'),
-          );
-        },
       ),
     );
   }
 }
 
-class _InventoryItem {
-  final String id;
-  final String title;
-  final String price;
-  final String views;
-  final String status;
-  final Color statusColor;
-  final String image;
-
-  const _InventoryItem({
-    required this.id,
-    required this.title,
-    required this.price,
-    required this.views,
-    required this.status,
-    required this.statusColor,
-    required this.image,
-  });
-}
-
 class _CollectionCard extends StatelessWidget {
-  final _InventoryItem item;
+  final Map<String, dynamic> item;
   final VoidCallback onTap;
 
   const _CollectionCard({
@@ -180,6 +182,11 @@ class _CollectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final title = item['title'] ?? 'Vintage Item';
+    final price = item['price'] ?? '\$1,200 - \$1,800';
+    final score = item['authenticityScore'] ?? 94;
+    final imgPath = item['image'] ?? item['imageUrl'] ?? AppImages.productOne;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -202,12 +209,31 @@ class _CollectionCard extends StatelessWidget {
                 topLeft: Radius.circular(16.r),
                 topRight: Radius.circular(16.r),
               ),
-              child: Image.asset(
-                item.image,
-                width: double.infinity,
-                height: 140.h,
-                fit: BoxFit.cover,
-              ),
+              child: imgPath.toString().startsWith('http')
+                  ? Image.network(
+                      imgPath,
+                      width: double.infinity,
+                      height: 140.h,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Image.asset(
+                        AppImages.productOne,
+                        width: double.infinity,
+                        height: 140.h,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  : Image.asset(
+                      imgPath.toString().contains('assets/') ? imgPath : AppImages.productOne,
+                      width: double.infinity,
+                      height: 140.h,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Image.asset(
+                        AppImages.productOne,
+                        width: double.infinity,
+                        height: 140.h,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
             ),
             Padding(
               padding: EdgeInsets.all(12.w),
@@ -215,7 +241,7 @@ class _CollectionCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item.title,
+                    title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyles.boldSmall.copyWith(
@@ -230,7 +256,7 @@ class _CollectionCard extends StatelessWidget {
                   ),
                   SizedBox(height: 8.h),
                   Text(
-                    item.price,
+                    price,
                     style: TextStyles.boldSmall.copyWith(
                       color: AppColors.redButton,
                       fontSize: 14.sp,
@@ -246,7 +272,7 @@ class _CollectionCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              '94%',
+                              '$score%',
                               style: TextStyles.boldExtraSmall.copyWith(
                                 color: AppColors.redButton,
                                 fontSize: 12.sp,
@@ -262,7 +288,7 @@ class _CollectionCard extends StatelessWidget {
                               child: Align(
                                 alignment: Alignment.centerLeft,
                                 child: FractionallySizedBox(
-                                  widthFactor: 0.94,
+                                  widthFactor: (score / 100.0).clamp(0.1, 1.0),
                                   child: Container(
                                     decoration: BoxDecoration(
                                       color: AppColors.redButton,

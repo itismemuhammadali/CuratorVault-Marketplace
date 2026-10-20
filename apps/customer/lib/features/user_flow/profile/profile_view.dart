@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
+import 'package:vintage_app/core/services/api_service.dart';
+import 'package:vintage_app/core/services/auth_service.dart';
 
 import '../../../core/components/global_header/header_config.dart';
 import '../../../core/components/global_header/header_controller_provider.dart';
@@ -22,14 +25,62 @@ class _ProfileViewState extends State<ProfileView> {
   bool _notificationsEnabled = true;
   bool _darkModeEnabled = false;
 
+  String _name = 'Customer User';
+  String _email = 'customer@vintagevibers.com';
+  String _membershipLabel = 'Gold Member';
+  String _pointsValue = '2,341';
+  String _itemsScanned = '47';
+  String _collectionValue = '\$8.6k';
+  String _avgRating = '4.9';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileData();
+  }
+
+  Future<void> _loadProfileData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      setState(() {
+        if (user.email != null && user.email!.isNotEmpty) {
+          _email = user.email!;
+        }
+        if (user.displayName != null && user.displayName!.isNotEmpty) {
+          _name = user.displayName!;
+        }
+      });
+    }
+
+    try {
+      final res = await ApiService.get('/api/v1/profile/me');
+      if (res is Map && mounted) {
+        final data = Map<String, dynamic>.from(res);
+        setState(() {
+          _name = (data['name'] ?? data['firstName'] ?? _name).toString();
+          _email = (data['email'] ?? _email).toString();
+          _membershipLabel = (data['membership'] ?? 'Gold Member').toString();
+          _pointsValue = (data['points'] ?? '2,341').toString();
+          _itemsScanned = (data['itemsScanned'] ?? '47').toString();
+          _collectionValue = (data['collectionValue'] ?? '\$8.6k').toString();
+          _avgRating = (data['avgRating'] ?? '4.9').toString();
+        });
+        _updateHeader();
+      }
+    } catch (e) {
+      debugPrint('Error loading customer profile from backend: $e');
+    }
+  }
+
   void _updateHeader() {
+    if (!mounted) return;
     HeaderControllerProvider.of(context).value = HeaderConfig(
       title: Expanded(
         child: _ProfileHeaderCard(
-          name: 'Lori Porter',
-          email: 'sarah.johnson@email.com',
-          membershipLabel: 'Gold Member',
-          pointsValue: '2,341',
+          name: _name,
+          email: _email,
+          membershipLabel: _membershipLabel,
+          pointsValue: _pointsValue,
           pointsLabel: 'Points',
           avatarAsset: AppImages.userImg,
         ),
@@ -44,11 +95,65 @@ class _ProfileViewState extends State<ProfileView> {
 
     if (!_headerSet) {
       _headerSet = true;
-
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
         _updateHeader();
       });
+    }
+  }
+
+  Future<void> _handleLogout() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+        ),
+        title: Text(
+          'Logout',
+          style: TextStyles.boldMedium.copyWith(
+            color: AppColors.gradientColor1,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to log out of your account?',
+          style: TextStyles.regularSmall.copyWith(
+            color: AppColors.lightText,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancel',
+              style: TextStyles.semiBoldSmall.copyWith(
+                color: AppColors.greyText,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.redButton,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Logout',
+              style: TextStyles.semiBoldSmall.copyWith(
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout == true) {
+      await AuthService().signOut();
+      if (mounted) {
+        context.go('/login');
+      }
     }
   }
 
@@ -66,7 +171,7 @@ class _ProfileViewState extends State<ProfileView> {
                 Expanded(
                   child: _StatTile(
                     customIcon: AppImages.packageIcon,
-                    value: '47',
+                    value: _itemsScanned,
                     label: 'Items Scanned',
                   ),
                 ),
@@ -74,7 +179,7 @@ class _ProfileViewState extends State<ProfileView> {
                 Expanded(
                   child: _StatTile(
                     icon: Icons.trending_up,
-                    value: '\$8.6k',
+                    value: _collectionValue,
                     label: 'Collection Value',
                   ),
                 ),
@@ -82,7 +187,7 @@ class _ProfileViewState extends State<ProfileView> {
                 Expanded(
                   child: _StatTile(
                     icon: Icons.star_border_rounded,
-                    value: '4.9',
+                    value: _avgRating,
                     label: 'Avg. Rating',
                   ),
                 ),
@@ -103,9 +208,10 @@ class _ProfileViewState extends State<ProfileView> {
                   customIcon: AppImages.profileIcon,
                   label: 'Edit Profile',
                   type: _SettingsItemType.chevron,
-                  onTap: (){
-                    context.push("/user/editprofile");
-                  }
+                  onTap: () async {
+                    await context.push('/user/editprofile');
+                    _loadProfileData();
+                  },
                 ),
                 _SettingsItem(
                   customIcon: AppImages.walletIcon,
@@ -120,7 +226,8 @@ class _ProfileViewState extends State<ProfileView> {
                   label: 'Order History',
                   type: _SettingsItemType.chevron,
                   onTap: () {
-                    context.push('/user/orders/history', extra: {'from': 'profile'});
+                    context.push('/user/orders/history',
+                        extra: {'from': 'profile'});
                   },
                 ),
                 _SettingsItem(
@@ -174,6 +281,14 @@ class _ProfileViewState extends State<ProfileView> {
                   type: _SettingsItemType.chevron,
                   onTap: () {
                     context.push('/user/purchase-history');
+                  },
+                ),
+                _SettingsItem(
+                  icon: Icons.notifications_active_outlined,
+                  label: 'Notification Center',
+                  type: _SettingsItemType.chevron,
+                  onTap: () {
+                    context.push('/user/notifications');
                   },
                 ),
                 _SettingsItem(
@@ -258,7 +373,7 @@ class _ProfileViewState extends State<ProfileView> {
             ),
             SizedBox(height: 24.h),
             _LogoutButton(
-              onTap: () {},
+              onTap: _handleLogout,
             ),
           ],
         ),
@@ -436,7 +551,7 @@ class _StatTile extends StatelessWidget {
   final String value;
   final String label;
 
-  _StatTile({
+  const _StatTile({
     this.icon,
     this.customIcon,
     required this.value,
@@ -460,7 +575,7 @@ class _StatTile extends StatelessWidget {
                   customIcon!,
                   width: 22.sp,
                   height: 22.sp,
-                  colorFilter: ColorFilter.mode(
+                  colorFilter: const ColorFilter.mode(
                     AppColors.lightText,
                     BlendMode.srcIn,
                   ),
@@ -494,7 +609,7 @@ class _StatTile extends StatelessWidget {
   }
 }
 
-enum _SettingsItemType { chevron, toggle, valueChevron }
+enum _SettingsItemType { chevron, toggle }
 
 class _SettingsItem {
   final IconData? icon;
@@ -502,7 +617,6 @@ class _SettingsItem {
   final String? iconText;
   final String label;
   final _SettingsItemType type;
-  final String? valueText;
 
   final bool isLast;
 
@@ -516,7 +630,6 @@ class _SettingsItem {
     this.iconText,
     required this.label,
     required this.type,
-    this.valueText,
     this.isLast = false,
     this.toggleValue,
     this.onToggle,
@@ -595,7 +708,10 @@ class _SettingsRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            _LeadingIcon(icon: item.icon, customIcon: item.customIcon, iconText: item.iconText),
+            _LeadingIcon(
+                icon: item.icon,
+                customIcon: item.customIcon,
+                iconText: item.iconText),
             SizedBox(width: 12.w),
             Expanded(
               child: Text(
@@ -610,29 +726,11 @@ class _SettingsRow extends StatelessWidget {
                 Icons.chevron_right_rounded,
                 color: AppColors.lightText.withValues(alpha: 0.38),
               ),
-            if (item.type == _SettingsItemType.valueChevron)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    item.valueText ?? '',
-                    style: TextStyles.regularSmall.copyWith(
-                      color: AppColors.lightText.withValues(alpha: 0.55),
-                    ),
-                  ),
-                  SizedBox(width: 6.w),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: AppColors.lightText.withValues(alpha: 0.38),
-                  ),
-                ],
-              ),
             if (item.type == _SettingsItemType.toggle)
               Switch(
                 value: item.toggleValue ?? false,
                 onChanged: item.onToggle,
                 activeThumbColor: AppColors.bodyBg,
-
                 activeTrackColor: AppColors.lightText,
                 inactiveThumbColor: AppColors.lightText,
                 inactiveTrackColor:
@@ -675,7 +773,7 @@ class _LeadingIcon extends StatelessWidget {
                     customIcon!,
                     width: 20.sp,
                     height: 20.sp,
-                    colorFilter: ColorFilter.mode(
+                    colorFilter: const ColorFilter.mode(
                       AppColors.redButton,
                       BlendMode.srcIn,
                     ),

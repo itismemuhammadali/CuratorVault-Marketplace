@@ -12,12 +12,13 @@ class AuthHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.of(context).padding.top;
+    final effectiveHeight = headerHeight ?? 260.h;
 
     return ClipPath(
       clipper: HeaderArcClipper(),
       child: Container(
         width: double.infinity,
-        height: headerHeight ?? 300.h,
+        height: effectiveHeight,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -43,7 +44,7 @@ class AuthHeader extends StatelessWidget {
             ),
             Positioned(
               left: 24.w,
-              top: topInset + 22.h,
+              top: topInset + 16.h,
               child: Navigator.of(context).canPop()
                   ? GestureDetector(
                       onTap: () => Navigator.of(context).maybePop(),
@@ -66,7 +67,7 @@ class AuthHeader extends StatelessWidget {
             Positioned(
               left: 0,
               right: 0,
-              bottom: 28.h,
+              bottom: 30.h,
               child: Center(
                 child: Container(
                   padding: EdgeInsets.all(4.w),
@@ -80,8 +81,8 @@ class AuthHeader extends StatelessWidget {
                   child: ClipOval(
                     child: Image.asset(
                       AppImages.userImg,
-                      width: 92.w,
-                      height: 92.w,
+                      width: 86.w,
+                      height: 86.w,
                       fit: BoxFit.cover,
                     ),
                   ),

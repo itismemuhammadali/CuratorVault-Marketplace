@@ -15,6 +15,7 @@ class AppTextField extends StatelessWidget {
   final int maxLines;
   final TextCapitalization textCapitalization;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
   final Color? fillColor;
   final Color? borderColor;
   final Color? focusedBorderColor;
@@ -36,6 +37,7 @@ class AppTextField extends StatelessWidget {
     this.maxLines = 1,
     this.textCapitalization = TextCapitalization.none,
     this.onChanged,
+    this.onSubmitted,
     this.fillColor,
     this.borderColor,
     this.focusedBorderColor,
@@ -60,6 +62,7 @@ class AppTextField extends StatelessWidget {
       maxLines: maxLines,
       textCapitalization: textCapitalization,
       onChanged: onChanged,
+      onSubmitted: onSubmitted,
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle:
