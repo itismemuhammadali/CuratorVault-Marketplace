@@ -1,4 +1,4 @@
-# 🕰️ Vinifera Marketplace — AI-Powered Vintage Appraisals, Antique Auctions & Collector Marketplace
+# 🕰️ CuratorVault Marketplace — AI-Powered Vintage Appraisals, Antique Auctions & Collector Marketplace
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -11,7 +11,7 @@
 
 ## 🌟 Executive Overview
 
-**Vinifera Marketplace** is an enterprise-grade mobile and cloud ecosystem engineered for antique collectors, estate liquidators, and vintage enthusiasts. The platform solves the perennial challenge of identifying, pricing, and trading rare vintage heirlooms—such as historic timepieces, mid-century lamps, vintage jewelry, antique furniture, and art objects.
+**CuratorVault Marketplace** is an enterprise-grade mobile and cloud ecosystem engineered for antique collectors, estate liquidators, and vintage enthusiasts. The platform solves the perennial challenge of identifying, pricing, and trading rare vintage heirlooms—such as historic timepieces, mid-century lamps, vintage jewelry, antique furniture, and art objects.
 
 ### Core Value Proposition & Computer Vision Appraisals
 
