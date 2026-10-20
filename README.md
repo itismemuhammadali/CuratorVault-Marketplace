@@ -1,4 +1,11 @@
-# 🕰️ CuratorVault Marketplace — AI-Powered Vintage Appraisals, Antique Auctions & Collector Marketplace
+# 🕰️ CuratorVault Marketplace
+
+<p align=center>
+  <img src="assets/branding/logo.jpg" alt="CuratorVault Marketplace Logo" width="180" style="border-radius: 20px; box-shadow: 0 8px 32px rgba(212, 175, 55, 0.25);" />
+</p>
+
+> **AI-Powered Vintage Appraisals, Antique Auctions & Collector Marketplace** built with Flutter, FastAPI, and Firebase.
+
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
